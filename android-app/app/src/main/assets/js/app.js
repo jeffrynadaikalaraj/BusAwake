@@ -967,6 +967,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const shakeBox = document.getElementById('alarmShakeSection');
       if (shakeBox) shakeBox.style.display = 'block';
+
+      // Start 3-second auto action countdown for phone dialer
+      const triggerData = {
+        distanceMeters: distRemainingMeters || 200,
+        latitude: currentSettings.triggerStop.lat,
+        longitude: currentSettings.triggerStop.lng
+      };
+      updateAlarmOverlayActions(triggerData);
+      startAutoActionCountdown(triggerData);
     };
 
     window.onNativeShakeProgress = (count, max) => {
@@ -1111,6 +1120,80 @@ document.addEventListener('DOMContentLoaded', () => {
         if (testShakeStatus) testShakeStatus.textContent = 'Timed out (3s window). Shake 3 times firmly.';
       };
     }
+
+    // =========================================================================
+    // WEB FALLBACK SHAKE DETECTOR (active during ALERTING or shake test)
+    // =========================================================================
+    let webShakeCount = 0;
+    let webLastShakeTime = 0;
+    let webLastAccel = { x: 0, y: 0, z: 0 };
+    let webShakeWindowTimer = null;
+
+    if (window.DeviceMotionEvent) {
+      window.addEventListener('devicemotion', (event) => {
+        const isAlerting = (currentState === STATES.ALERTING);
+        if (!isAlerting && !isTestingShake) return;
+
+        const acc = event.accelerationIncludingGravity || event.acceleration;
+        if (!acc || acc.x === null) return;
+
+        const now = Date.now();
+        const deltaX = Math.abs(acc.x - webLastAccel.x);
+        const deltaY = Math.abs(acc.y - webLastAccel.y);
+        const deltaZ = Math.abs(acc.z - webLastAccel.z);
+        webLastAccel = { x: acc.x, y: acc.y, z: acc.z };
+
+        const totalDelta = deltaX + deltaY + deltaZ;
+        if (totalDelta > 13) {
+          if (now - webLastShakeTime > 180) { // debounce reversal peaks
+            webLastShakeTime = now;
+            webShakeCount++;
+            console.log('[Web Shake Detected]:', webShakeCount);
+
+            if (isTestingShake) {
+              if (window.onShakeTestProgress) window.onShakeTestProgress(webShakeCount, 3);
+            } else {
+              if (window.onNativeShakeProgress) window.onNativeShakeProgress(webShakeCount, 3);
+            }
+
+            clearTimeout(webShakeWindowTimer);
+            webShakeWindowTimer = setTimeout(() => {
+              webShakeCount = 0;
+              if (isTestingShake) {
+                if (window.onShakeTestReset) window.onShakeTestReset();
+              } else {
+                if (window.onNativeShakeReset) window.onNativeShakeReset();
+              }
+            }, 3500);
+
+            if (webShakeCount >= 3) {
+              console.log('[Web Shake Completed] 3 shakes confirmed!');
+              webShakeCount = 0;
+              clearTimeout(webShakeWindowTimer);
+              if (isTestingShake) {
+                if (window.onShakeTestCompleted) window.onShakeTestCompleted();
+              } else {
+                dismissAlarm('shake');
+              }
+            }
+          }
+        }
+      }, { passive: true });
+    }
+
+    function dismissAlarm(source = 'manual_button') {
+      cancelAutoActionCountdown();
+      window.alarmEngine.stop();
+      if (window.AndroidBridge && typeof window.AndroidBridge.dismissNativeAlarm === 'function') {
+        window.AndroidBridge.dismissNativeAlarm();
+      }
+      window.geoTracker.stopTracking();
+      stopCockpitMode();
+      const contact = window.StorageManager.getActiveContact();
+      if (window.onNativeAlarmDismissed) {
+        window.onNativeAlarmDismissed(source, contact.name, contact.phone);
+      }
+    }
   }
 
   function triggerCrossingAlert(distToTrigger = 250, triggerData = null) {
@@ -1140,6 +1223,23 @@ document.addEventListener('DOMContentLoaded', () => {
     // Start Vibration and Selected Alarm Sound Tone
     const soundEnabled = currentSettings.alertMode !== 'vibrate_only';
     window.alarmEngine.start(soundEnabled, currentSettings.audioAlarmSound || 'bus_bell');
+
+    // Start Native Android Alarm Controller and Shake Detector
+    if (window.AndroidBridge && typeof window.AndroidBridge.startAlarmAndShake === 'function') {
+      window.AndroidBridge.startAlarmAndShake("Near " + triggerName);
+    }
+
+    // Reset shake pills for this alarm cycle
+    for (let i = 1; i <= 3; i++) {
+      const p = document.getElementById('alarmShakePill' + i);
+      if (p) p.className = 'shake-pill';
+    }
+    const hint = document.getElementById('alarmShakeHint');
+    if (hint) hint.textContent = 'Shake phone 3 times firmly to stop alarm';
+    const postCard = document.getElementById('alarmPostDismissCard');
+    if (postCard) postCard.style.display = 'none';
+    const shakeBox = document.getElementById('alarmShakeSection');
+    if (shakeBox) shakeBox.style.display = 'block';
 
     // Voice Speech Announcer (TTS)
     if (currentSettings.ttsAnnounceEnabled !== false) {
@@ -1260,12 +1360,14 @@ document.addEventListener('DOMContentLoaded', () => {
     // 2. Trigger native OS call dialer or WhatsApp
     const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
+    const targetPhone = links.phone || links.displayPhone || '9444883897';
+
     if (action === 'auto_call') {
-      console.log('[Auto-Action] Direct Phone Call Mode (No messages): Opening dialer to:', links.phone);
+      console.log('[Auto-Action] Direct Phone Call Mode: Opening dialer to:', targetPhone);
       // Native Android App: Open system dialer prefilled with number (ACTION_DIAL, zero dangerous permissions)
       if (window.AndroidBridge && typeof window.AndroidBridge.openDialer === 'function') {
-        console.log('[Native AndroidBridge] Opening native dialer to:', links.phone);
-        window.AndroidBridge.openDialer(links.phone);
+        console.log('[Native AndroidBridge] Opening native dialer to:', targetPhone);
+        window.AndroidBridge.openDialer(targetPhone);
       } else {
         window.location.href = links.telLink;
         if (!isMobileDevice) {

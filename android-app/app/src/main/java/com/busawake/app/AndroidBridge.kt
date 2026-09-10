@@ -39,12 +39,12 @@ class AndroidBridge(
 
     /**
      * Opens Android's system dialer with the phone number pre-filled.
-     * Uses ACTION_DIAL, requiring the user to tap Call.
-     * Completely safe, zero dangerous permissions required.
+     * Uses Uri.fromParts to safely preserve '+' for country codes without percent-encoding issues.
      */
     @JavascriptInterface
     fun openDialer(phoneNumber: String) {
         val cleanNumber = phoneNumber.trim().replace(" ", "").replace("-", "")
+        Log.i(TAG, "openDialer called: raw='$phoneNumber', clean='$cleanNumber'")
         if (cleanNumber.isEmpty()) {
             activity.runOnUiThread {
                 Toast.makeText(activity, "⚠️ Phone number is empty", Toast.LENGTH_SHORT).show()
@@ -54,15 +54,41 @@ class AndroidBridge(
 
         activity.runOnUiThread {
             try {
-                val dialIntent = Intent(Intent.ACTION_DIAL).apply {
-                    data = Uri.parse("tel:${Uri.encode(cleanNumber)}")
+                // Uri.fromParts creates RFC 3966 'tel:+91...' without percent-encoding '+'
+                val phoneUri = Uri.fromParts("tel", cleanNumber, null)
+                val dialIntent = Intent(Intent.ACTION_DIAL, phoneUri).apply {
                     flags = Intent.FLAG_ACTIVITY_NEW_TASK
                 }
                 activity.startActivity(dialIntent)
-                Log.i(TAG, "Opened system dialer for: $cleanNumber")
+                Log.i(TAG, "Successfully started ACTION_DIAL for: $phoneUri")
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to open dialer", e)
-                Toast.makeText(activity, "⚠️ Unable to open phone dialer", Toast.LENGTH_SHORT).show()
+                Log.e(TAG, "Failed to launch dialer with Uri.fromParts, trying fallback", e)
+                try {
+                    val fallbackIntent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:$cleanNumber")).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    }
+                    activity.startActivity(fallbackIntent)
+                } catch (e2: Exception) {
+                    Log.e(TAG, "Fallback dialer intent failed", e2)
+                    Toast.makeText(activity, "⚠️ Unable to open phone dialer", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    /**
+     * Starts native alarm sound, vibration, and shake detection.
+     * Works both during active background trip and during manual/simulator tests.
+     */
+    @JavascriptInterface
+    fun startAlarmAndShake(reason: String) {
+        Log.i(TAG, "startAlarmAndShake requested: $reason")
+        activity.runOnUiThread {
+            val service = JourneyService.instance
+            if (service != null && service.isTripActive) {
+                service.alarmController.triggerAlarm(reason)
+            } else {
+                activity.startStandaloneAlarmAndShake(reason)
             }
         }
     }
@@ -115,6 +141,7 @@ class AndroidBridge(
             } catch (e: Exception) {
                 Log.e(TAG, "Error stopping JourneyService", e)
             }
+            activity.dismissStandaloneAlarm()
         }
     }
 
@@ -126,6 +153,7 @@ class AndroidBridge(
         Log.i(TAG, "Manual alarm dismiss requested via bridge")
         activity.runOnUiThread {
             JourneyService.instance?.alarmController?.dismissAlarm("manual_button")
+            activity.dismissStandaloneAlarm()
         }
     }
 
@@ -219,10 +247,10 @@ class AndroidBridge(
                 activity.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                vibrator?.vibrate(VibrationEffect.createOneShot(200, VibrationEffect.DEFAULT_AMPLITUDE))
+                vibrator?.vibrate(VibrationEffect.createOneShot(150, VibrationEffect.DEFAULT_AMPLITUDE))
             } else {
                 @Suppress("DEPRECATION")
-                vibrator?.vibrate(200)
+                vibrator?.vibrate(150)
             }
         } catch (e: Exception) {
             Log.e(TAG, "Haptic error", e)

@@ -43,20 +43,23 @@ class MainActivity : AppCompatActivity() {
     private var journeyService: JourneyService? = null
     private var isBound = false
 
+    private var standaloneAlarmController: AlarmController? = null
+    private var standaloneShakeDetector: ShakeDetector? = null
+
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
             val binder = service as? JourneyService.LocalBinder
-        journeyService = binder?.getService()
-        isBound = true
-        setupServiceCallbacks()
-        Log.i(TAG, "Connected to JourneyService")
+            journeyService = binder?.getService()
+            isBound = true
+            setupServiceCallbacks()
+            Log.i(TAG, "Connected to JourneyService")
 
-        // If service was already active in background, push state to UI
-        journeyService?.getSnapshot()?.let { snapshot ->
-            if (snapshot.optBoolean("isTripActive", false)) {
-                evalJs("if(window.onNativeStateRestored) window.onNativeStateRestored($snapshot);")
+            // If service was already active in background, push state to UI
+            journeyService?.getSnapshot()?.let { snapshot ->
+                if (snapshot.optBoolean("isTripActive", false)) {
+                    evalJs("if(window.onNativeStateRestored) window.onNativeStateRestored($snapshot);")
+                }
             }
-        }
         }
 
         override fun onServiceDisconnected(name: ComponentName?) {
@@ -149,6 +152,45 @@ class MainActivity : AppCompatActivity() {
                 evalJs("if(window.onNativeAlarmDismissed) window.onNativeAlarmDismissed('$source', '$contactName', '$contactPhone');")
             }
         }
+    }
+
+    fun startStandaloneAlarmAndShake(reason: String) {
+        Log.i(TAG, "Starting standalone alarm and shake: $reason")
+        if (standaloneAlarmController == null) {
+            standaloneAlarmController = AlarmController(this).apply {
+                listener = object : AlarmController.Listener {
+                    override fun onAlarmStarted(reason: String) {
+                        standaloneShakeDetector?.start()
+                    }
+                    override fun onAlarmDismissed(source: String) {
+                        standaloneShakeDetector?.stop()
+                        evalJs("if(window.onNativeAlarmDismissed) window.onNativeAlarmDismissed('$source', 'Dad', '9444883897');")
+                    }
+                }
+            }
+        }
+        if (standaloneShakeDetector == null) {
+            standaloneShakeDetector = ShakeDetector(this).apply {
+                listener = object : ShakeDetector.Listener {
+                    override fun onShakeProgress(count: Int, max: Int) {
+                        evalJs("if(window.onNativeShakeProgress) window.onNativeShakeProgress($count, $max);")
+                    }
+                    override fun onShakeCompleted() {
+                        standaloneAlarmController?.dismissAlarm("shake")
+                    }
+                    override fun onShakeReset() {
+                        evalJs("if(window.onNativeShakeReset) window.onNativeShakeReset();")
+                    }
+                }
+            }
+        }
+        standaloneAlarmController?.triggerAlarm(reason)
+        standaloneShakeDetector?.start()
+    }
+
+    fun dismissStandaloneAlarm() {
+        standaloneAlarmController?.dismissAlarm("manual_button")
+        standaloneShakeDetector?.stop()
     }
 
     fun evalJs(javascript: String) {
@@ -249,17 +291,14 @@ class MainActivity : AppCompatActivity() {
             }
 
             override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
+                super.onPageStarted(view, url, favicon)
                 progressBar.visibility = View.VISIBLE
             }
 
             override fun onPageFinished(view: WebView?, url: String?) {
+                super.onPageFinished(view, url)
                 progressBar.visibility = View.GONE
-                // Push active journey state if running in background
-                JourneyService.instance?.getSnapshot()?.let { snapshot ->
-                    if (snapshot.optBoolean("isTripActive", false)) {
-                        evalJs("if(window.onNativeStateRestored) window.onNativeStateRestored($snapshot);")
-                    }
-                }
+                Log.i(TAG, "BusAwake page loaded successfully: $url")
             }
 
             override fun onReceivedError(
@@ -267,13 +306,8 @@ class MainActivity : AppCompatActivity() {
                 request: WebResourceRequest?,
                 error: WebResourceError?
             ) {
-                if (request?.isForMainFrame == true) {
-                    Toast.makeText(
-                        this@MainActivity,
-                        "Notice: Connecting to BusAwake...",
-                        Toast.LENGTH_SHORT
-                    ).show()
-                }
+                super.onReceivedError(view, request, error)
+                Log.e(TAG, "WebView error: ${error?.description} (${error?.errorCode})")
             }
         }
     }
@@ -284,8 +318,8 @@ class MainActivity : AppCompatActivity() {
                 if (webView.canGoBack()) {
                     webView.goBack()
                 } else {
-                    isEnabled = false
-                    onBackPressedDispatcher.onBackPressed()
+                    // Minimize to background instead of destroying so active journeys continue
+                    moveTaskToBack(true)
                 }
             }
         })
@@ -293,10 +327,10 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        dismissStandaloneAlarm()
         if (isBound) {
             unbindService(serviceConnection)
             isBound = false
         }
-        webView.destroy()
     }
 }
