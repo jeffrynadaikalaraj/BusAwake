@@ -1,0 +1,25 @@
+# Built Binaries & Packages
+*.apk
+*.aab
+
+# Gradle Build Folders & Cache
+.gradle/
+build/
+**/build/
+android-app/.gradle/
+android-app/build/
+android-app/app/build/
+
+# Android Studio & IntelliJ Files
+.idea/
+*.iml
+.navigation/
+captures/
+.externalNativeBuild/
+.cxx/
+local.properties
+
+# OS Generated Files
+.DS_Store
+Thumbs.db
+desktop.ini

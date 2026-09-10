@@ -1,0 +1,917 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>BusAwake - Bus Stop GPS Alarm & Commute Alert</title>
+  
+  <meta name="description" content="GPS-based transit alarm that vibrates silently to wake you up before your bus stop, with 1-tap WhatsApp and call alerts for your family.">
+  <meta name="theme-color" content="#06080d">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="icon" type="image/svg+xml" href="icons/icon.svg">
+  <link rel="manifest" href="manifest.json">
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700;800&display=swap" rel="stylesheet">
+
+  <!-- Leaflet Map CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+  <!-- App Styles -->
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <div class="app-container">
+    <!-- Top Sticky Header -->
+    <header class="app-header">
+      <div class="brand-wrapper">
+        <div class="brand-logo">🚌</div>
+        <div>
+          <h1 class="brand-title">BusAwake</h1>
+          <div class="brand-subtitle" id="headerRouteSub">Ambattur OT ➔ Canara Stand</div>
+        </div>
+      </div>
+      <div id="statusBadge" class="status-badge idle">
+        <span class="status-dot"></span>
+        <span id="statusText">IDLE</span>
+      </div>
+    </header>
+
+    <!-- Background Wake Warning Banner -->
+    <div id="visibilityWarning" class="visibility-warning">
+      <span>💡</span>
+      <span>Screen was minimized. Keep screen on or use AMOLED Sleep Mode for continuous GPS tracking.</span>
+    </div>
+
+    <!-- Main View Tabs -->
+    <main class="main-view">
+
+      <!-- ========================================================= -->
+      <!-- TAB 1: TRACKER & HERO GAUGE (HOME)                        -->
+      <!-- ========================================================= -->
+      <section id="tabTracker" class="tab-pane active">
+        
+        <!-- Route Presets Bar -->
+        <div class="chips-bar">
+          <span class="chips-label">Route Preset:</span>
+          <div id="routeChipsContainer" class="chips-scroll">
+            <!-- Dynamic Route Chips -->
+          </div>
+        </div>
+
+        <!-- Alert Contact Bar -->
+        <div class="chips-bar">
+          <span class="chips-label">Notify On Arrival:</span>
+          <div id="contactChipsContainer" class="chips-scroll">
+            <!-- Dynamic Contact Chips -->
+          </div>
+        </div>
+
+        <!-- Hero Tracker Card -->
+        <div class="card hero-tracker">
+          <!-- Live Movement & Compass Badge -->
+          <div id="liveDirectionBadge" class="live-direction-badge">
+            <span id="directionArrowIcon" class="direction-arrow-icon">➤</span>
+            <span id="directionText">Detecting live GPS location...</span>
+          </div>
+
+          <!-- Checkpoints Path Banner -->
+          <div class="checkpoint-banner">
+            <span class="cp-tag trigger">🚩 Alert: <strong id="heroTriggerName">Ambattur OT</strong></span>
+            <span class="cp-arrow">➔</span>
+            <span class="cp-tag dest">🏁 Drop: <strong id="heroDestName">Canara Bus Stand</strong></span>
+          </div>
+
+          <!-- Auto-Action Mode Badge -->
+          <div class="auto-action-indicator" id="autoActionIndicator">
+            <span class="aai-icon">⚡</span>
+            <span>On Reach: <strong id="heroAutoActionLabel">Auto-Call Dad</strong> (<span id="heroAutoCountdownLabel">3s Countdown</span>)</span>
+          </div>
+
+          <div class="distance-label" id="heroDistLabel">Distance To Wake Checkpoint</div>
+          <div id="heroDistance" class="distance-large">-- km</div>
+
+          <!-- 3 Real-time Metrics -->
+          <div class="metrics-row">
+            <div class="metric-box">
+              <div id="heroSpeed" class="metric-val">0</div>
+              <div class="metric-lbl">Speed km/h</div>
+            </div>
+            <div class="metric-box">
+              <div id="heroEta" class="metric-val">--</div>
+              <div class="metric-lbl">ETA (Mins)</div>
+            </div>
+            <div class="metric-box">
+              <div id="heroDistToFinal" class="metric-val">--</div>
+              <div class="metric-lbl">To Drop Stop</div>
+            </div>
+          </div>
+
+          <!-- Live GPS Accuracy & Reading Age -->
+          <div class="sensor-accuracy-row">
+            <span id="trackerGpsAccuracy" class="sensor-acc-pill">📡 GPS: Acquiring...</span>
+            <span id="trackerSpeedAccuracy" class="sensor-acc-pill">⚡ Speed Acc: ±--</span>
+            <span id="trackerFixAge" class="sensor-acc-pill">⏱️ Fix: 0s ago</span>
+          </div>
+        </div>
+
+        <!-- Start / Controls Button Card -->
+        <div class="card">
+          <div style="display: flex; flex-direction: column; gap: 10px;">
+            <button id="btnStartTrip" class="btn btn-emerald">
+              <span>🚀</span> Start Bus Ride & Sleep Mode
+            </button>
+            <button id="btnEnterSleep" class="btn btn-outline" style="display: none;">
+              <span>🌙</span> Show AMOLED Dark Screen
+            </button>
+            <button id="btnStopTrip" class="btn btn-danger" style="display: none;">
+              <span>🛑</span> Stop Active Trip
+            </button>
+          </div>
+        </div>
+
+        <!-- Quick 1-Tap Verification Bar: Confirm Dad's Phone Rings & Receives WhatsApp -->
+        <div class="card quick-test-card">
+          <div style="font-size: 0.76rem; font-weight: 700; color: #f8fafc; margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">
+            <span>🧪</span> 1-Tap Test: Verify Ring & WhatsApp to <span id="quickTestContactName">Dad</span>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+            <button id="btnQuickTestCall" class="btn btn-emerald btn-sm" style="font-size: 0.78rem;">
+              📞 Ring Dad Now
+            </button>
+            <button id="btnQuickTestWa" class="btn btn-primary btn-sm" style="font-size: 0.78rem;">
+              💬 Send WhatsApp
+            </button>
+          </div>
+          <div id="quickTestStatus" style="font-size: 0.7rem; color: var(--accent-cyan); margin-top: 6px; text-align: center;">
+            Contact number: <strong id="quickTestPhoneDisplay">--</strong>
+          </div>
+          <button id="btnQuickTestAudio" class="btn btn-outline btn-sm" style="margin-top: 8px; font-size: 0.76rem; border-color: #f59e0b; color: #f59e0b; width: 100%;">
+            🔊 Pre-Trip Test: Alarm Sound & Volume
+          </button>
+          <div id="quickTestVolumeNote" style="font-size: 0.7rem; color: #cbd5e1; margin-top: 4px; text-align: center; display: none;"></div>
+        </div>
+
+        <!-- Alert Summary Box -->
+        <div class="alert-summary-box">
+          <span class="bell">🔔</span>
+          <div>
+            When entering <strong id="summaryTriggerName">Ambattur OT</strong>, your phone will vibrate, ring, and <span id="summaryAutoActionText">automatically alert <strong id="summaryContactName">Dad</strong></span> with live GPS for pickup at <strong id="summaryFinalName">Canara Bus Stand</strong>.
+          </div>
+        </div>
+
+        <!-- Quick Test & Simulator Drawer (Collapsed by default for zero clutter) -->
+        <div class="card" style="padding: 12px 16px;">
+          <details>
+            <summary>🧪 Quick Test & Ride Simulator</summary>
+            <p style="font-size: 0.78rem; color: var(--text-secondary); margin: 8px 0 12px;">
+              Verify the silent vibration, wake chime, and contact alert buttons before boarding your bus.
+            </p>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+              <button id="btnSimulateRide" class="btn btn-primary btn-sm">
+                <span>🚌</span> Simulate Ride
+              </button>
+              <button id="btnDirectVibrateTest" class="btn btn-outline btn-sm">
+                <span>📳</span> Test Alert Now
+              </button>
+            </div>
+          </details>
+        </div>
+      </section>
+
+      <!-- ========================================================= -->
+      <!-- TAB 2: UNIFIED ROUTE & MAP                                -->
+      <!-- ========================================================= -->
+      <section id="tabMap" class="tab-pane">
+
+        <!-- Unified Interactive Map Container -->
+        <div class="map-view-wrapper">
+          <div id="mapUnified"></div>
+          
+          <div class="map-floating-controls">
+            <button id="btnLocateMe" class="map-floating-btn" title="Center on My Live Location">
+              <span>🎯 Center Me</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Map Layer Style Options -->
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <span style="font-size: 0.72rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase;">Map Layer:</span>
+          <div class="map-style-row">
+            <button id="btnTileGoogleRoads" class="map-style-chip active" data-style="google_roadmap">Roadmap</button>
+            <button id="btnTileGoogleSatellite" class="map-style-chip" data-style="google_hybrid">Satellite</button>
+            <button id="btnTileOsm" class="map-style-chip" data-style="osm">OpenStreetMap</button>
+          </div>
+        </div>
+
+        <!-- Checkpoints Setup Card -->
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title"><span class="icon">📍</span> Stop & Checkpoint Setup</h2>
+          </div>
+
+          <!-- Select which stop to set/search -->
+          <div class="chips-bar" style="margin-bottom: 12px;">
+            <div style="display: flex; gap: 8px;">
+              <button id="btnSelectTriggerMode" class="chip-item active" style="flex: 1; justify-content: center;">
+                🚩 1. Alert Trigger Stop
+              </button>
+              <button id="btnSelectFinalMode" class="chip-item" style="flex: 1; justify-content: center;">
+                🏁 2. Final Drop Stop
+              </button>
+            </div>
+          </div>
+
+          <!-- Smart Search Bar -->
+          <div class="search-box-wrapper" style="margin-bottom: 12px;">
+            <div class="search-input-group">
+              <span class="search-icon">🔍</span>
+              <input type="text" id="inputSearchPlace" class="search-input" placeholder="Search bus stop or landmark (e.g. Ambattur OT)...">
+              <button id="btnClearSearchPlace" class="search-clear-btn" style="display: none;">✕</button>
+            </div>
+            <div id="searchResultsDropdown" class="search-results-dropdown" style="display: none;"></div>
+          </div>
+
+          <!-- Stop Name & GPS Button -->
+          <div style="display: flex; gap: 8px; align-items: flex-end; margin-bottom: 12px;">
+            <div class="form-group" style="flex: 1; margin-bottom: 0;">
+              <label class="form-label" id="lblCurrentStopName">Alert Checkpoint Name</label>
+              <input type="text" id="inputStopName" class="form-input" value="Ambattur OT Bus Stand">
+            </div>
+            <button id="btnUseGpsCurrent" class="btn btn-outline btn-sm" style="white-space: nowrap; height: 44px;">
+              📍 Use Current GPS
+            </button>
+          </div>
+
+          <!-- Trigger Detection Radius Slider -->
+          <div class="form-group" style="margin-bottom: 12px;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <label class="form-label" for="sliderTriggerRadius">Wake Trigger Radius</label>
+              <span id="badgeTriggerRadius" class="slider-val-badge">400 m</span>
+            </div>
+            <div class="range-slider-wrapper">
+              <input type="range" id="sliderTriggerRadius" class="range-slider" min="150" max="1000" step="50" value="400">
+            </div>
+            <span style="font-size: 0.72rem; color: var(--text-muted);">
+              Alarm triggers when the bus enters this distance from the checkpoint.
+            </span>
+          </div>
+
+          <!-- Save Presets Action Buttons -->
+          <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 6px;">
+            <button id="btnConfirmBothStops" class="btn btn-emerald">
+              <span>✅</span> Confirm & Apply Route
+            </button>
+            <button id="btnSaveAsNewRoute" class="btn btn-outline btn-sm">
+              <span>⭐</span> Save as New Route Preset
+            </button>
+          </div>
+        </div>
+
+        <!-- Saved Route Presets -->
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title"><span class="icon">📑</span> Saved Route Presets</h2>
+          </div>
+          <div id="savedRoutesList" class="saved-items-list">
+            <!-- Dynamic route presets -->
+          </div>
+        </div>
+      </section>
+
+      <!-- ========================================================= -->
+      <!-- TAB 3: CONTACTS & MESSAGES                                -->
+      <!-- ========================================================= -->
+      <section id="tabContacts" class="tab-pane">
+
+        <!-- Active Contact Card -->
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title"><span class="icon">📱</span> Active Alert Contact</h2>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="selectActiveContact">Contact To Alert</label>
+            <select id="selectActiveContact" class="form-input" style="font-weight: 700;">
+              <!-- Dynamic Contact Options -->
+            </select>
+          </div>
+
+          <div class="form-group">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <label class="form-label" for="inputContactPhone">Mobile Number (with country code)</label>
+              <span id="phoneValidationStatus" class="phone-validation-hint">Auto-formats +91</span>
+            </div>
+            <input type="tel" id="inputContactPhone" class="form-input" placeholder="+919876543210 or 9876543210">
+            <div id="phoneFormattedPreview" style="font-size: 0.72rem; color: #34d399; margin-top: 4px; font-weight: 600;"></div>
+          </div>
+
+          <button id="btnSaveActiveContactPhone" class="btn btn-emerald" style="margin-top: 4px;">
+            💾 Save Number for <span id="btnSaveContactLabel">Dad</span>
+          </button>
+        </div>
+
+        <!-- Automated Action on Distance Arrival Card -->
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title"><span class="icon">⚡</span> Auto-Action on Distance Arrival</h2>
+          </div>
+          <p style="font-size: 0.78rem; color: var(--text-secondary); margin-bottom: 12px;">
+            What happens <strong>automatically</strong> the moment your bus reaches the trigger distance:
+          </p>
+
+          <div class="auto-action-grid">
+            <label class="auto-action-option" data-action="auto_call">
+              <input type="radio" name="autoActionRadio" value="auto_call" checked>
+              <div class="aao-icon">📞</div>
+              <div class="aao-content">
+                <div class="aao-title">📞 Auto-Call Dad (Direct Call Only)</div>
+                <div class="aao-desc">Instantly dials Dad's phone (+91 94448 83897). Zero messages sent.</div>
+              </div>
+            </label>
+
+            <label class="auto-action-option" data-action="auto_whatsapp">
+              <input type="radio" name="autoActionRadio" value="auto_whatsapp">
+              <div class="aao-icon">💬</div>
+              <div class="aao-content">
+                <div class="aao-title">Auto-WhatsApp Message</div>
+                <div class="aao-desc">Opens WhatsApp chat with live location and speed</div>
+              </div>
+            </label>
+
+            <label class="auto-action-option" data-action="auto_call_and_wa">
+              <input type="radio" name="autoActionRadio" value="auto_call_and_wa">
+              <div class="aao-icon">⚡</div>
+              <div class="aao-content">
+                <div class="aao-title">Auto-Call & WhatsApp</div>
+                <div class="aao-desc">Triggers dialer and prepares WhatsApp message</div>
+              </div>
+            </label>
+
+            <label class="auto-action-option" data-action="auto_sms">
+              <input type="radio" name="autoActionRadio" value="auto_sms">
+              <div class="aao-icon">✉️</div>
+              <div class="aao-content">
+                <div class="aao-title">Auto-SMS Fallback</div>
+                <div class="aao-desc">Opens native SMS app with message to Dad</div>
+              </div>
+            </label>
+
+            <label class="auto-action-option" data-action="prompt_only">
+              <input type="radio" name="autoActionRadio" value="prompt_only">
+              <div class="aao-icon">📳</div>
+              <div class="aao-content">
+                <div class="aao-title">Vibrate & Prompt Only</div>
+                <div class="aao-desc">Vibrates loudly and waits for you to tap</div>
+              </div>
+            </label>
+          </div>
+
+          <div class="form-group" style="margin-top: 14px; margin-bottom: 10px;">
+            <label class="form-label" for="selectAutoCountdown">Auto-Action Execution Timing</label>
+            <select id="selectAutoCountdown" class="form-input" style="font-weight: 700;">
+              <option value="0">⚡ Instant (Zero Delay - fires immediately)</option>
+              <option value="3" selected>⏱️ 3-Second Countdown (Recommended)</option>
+              <option value="5">⏱️ 5-Second Countdown</option>
+            </select>
+          </div>
+
+          <button id="btnSaveAutoActionPref" class="btn btn-primary" style="margin-top: 4px;">
+            💾 Save Auto-Action Setting
+          </button>
+        </div>
+
+        <!-- Add New Contact -->
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title"><span class="icon">👥</span> Add / Manage Contacts</h2>
+          </div>
+
+          <div style="display: flex; gap: 8px; margin-bottom: 10px;">
+            <input type="text" id="inputNewContactName" class="form-input" placeholder="Name (e.g. Brother, Mom)" style="flex: 1;">
+            <input type="tel" id="inputNewContactPhone" class="form-input" placeholder="Phone (+91...)" style="flex: 1.2;">
+          </div>
+          <button id="btnAddContact" class="btn btn-outline btn-sm">
+            ➕ Add Contact
+          </button>
+
+          <div id="savedContactsList" class="saved-items-list" style="margin-top: 14px;">
+            <!-- Dynamic Contact Rows -->
+          </div>
+        </div>
+
+        <!-- WhatsApp Message Template -->
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title"><span class="icon">💬</span> WhatsApp Message Template</h2>
+          </div>
+
+          <div class="form-group">
+            <textarea id="inputCustomMsg" class="form-input" rows="3" style="resize: vertical; font-size: 0.82rem;"></textarea>
+            
+            <div style="display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap;">
+              <button type="button" id="btnInsertLiveGpsTag" class="btn btn-outline btn-sm" style="font-size: 0.72rem; padding: 4px 10px;">
+                📍 + Live GPS
+              </button>
+              <button type="button" id="btnInsertSpeedTag" class="btn btn-outline btn-sm" style="font-size: 0.72rem; padding: 4px 10px;">
+                ⚡ + Speed
+              </button>
+              <button type="button" id="btnResetDefaultMsg" class="btn btn-outline btn-sm" style="font-size: 0.72rem; padding: 4px 10px;">
+                🔄 Reset
+              </button>
+            </div>
+          </div>
+
+          <!-- Live Preview -->
+          <div class="msg-preview-card">
+            <span style="font-size: 0.7rem; color: var(--accent-cyan); font-weight: 700; text-transform: uppercase;">Message Preview:</span>
+            <p id="msgLivePreview" style="font-size: 0.8rem; color: #f1f5f9; margin-top: 4px; font-style: italic; white-space: pre-wrap;"></p>
+          </div>
+
+          <div style="margin-top: 12px;">
+            <div class="toggle-row">
+              <div class="toggle-label-group">
+                <span class="toggle-title">Include Google Maps Live Link</span>
+                <span class="toggle-desc">Adds a live coordinate link so contact sees your location</span>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="toggleSendLiveLocation" checked>
+                <span class="slider"></span>
+              </label>
+            </div>
+          </div>
+
+          <button id="btnSaveDadSettings" class="btn btn-primary" style="margin-top: 10px;">
+            💾 Save Message
+          </button>
+        </div>
+
+        <!-- Test Triggers -->
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title"><span class="icon">📲</span> Test Actions</h2>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            <button id="btnTestCall" class="btn btn-outline btn-sm" style="color: #34d399;">
+              📞 Test Direct Call Dialer
+            </button>
+            <button id="btnTestWhatsApp" class="btn btn-outline btn-sm" style="color: #22c55e;">
+              💬 Test WhatsApp Alert Link
+            </button>
+            <button id="btnTestSms" class="btn btn-outline btn-sm" style="color: #38bdf8;">
+              ✉️ Test Fallback SMS Link
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========================================================= -->
+      <!-- TAB 4: SETTINGS & TRIP LOGS                               -->
+      <!-- ========================================================= -->
+      <section id="tabSettings" class="tab-pane">
+
+        <!-- Preferences -->
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title"><span class="icon">⚙️</span> Alarm & Sound Preferences</h2>
+          </div>
+
+          <!-- Sound Type Selector -->
+          <div class="form-group" style="margin-bottom: 14px;">
+            <label class="form-label" for="selectAlarmSound">Alarm Tone</label>
+            <select id="selectAlarmSound" class="form-input" style="font-weight: 700;">
+              <option value="bus_bell" selected>🔔 Authentic Bus Double-Bell (Ding-Ding)</option>
+              <option value="siren">🚨 Piercing High-Urgency Siren (Noisy Bus Cabin)</option>
+              <option value="melodic">🎵 Harmonic Wake Chime (Gentle Ascending)</option>
+            </select>
+          </div>
+
+          <div class="toggle-row">
+            <div class="toggle-label-group">
+              <span class="toggle-title">Enable Audio Tone</span>
+              <span class="toggle-desc">Plays selected alarm tone on ALARM stream (Audibility subject to device volume & DND policy)</span>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="toggleSoundAlarm" checked>
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <div style="margin-top: 10px; margin-bottom: 8px;">
+            <button type="button" id="btnPreTripAudioTest" class="btn btn-outline btn-sm" style="width: 100%; border-color: #f59e0b; color: #f59e0b;">
+              🔊 Pre-Trip Test: Alarm Sound & Volume
+            </button>
+            <div id="volumeStatusNote" style="font-size: 0.72rem; color: #cbd5e1; margin-top: 4px; text-align: center; display: none;"></div>
+          </div>
+
+          <div class="toggle-row">
+            <div class="toggle-label-group">
+              <span class="toggle-title">Voice Announcer (Speech)</span>
+              <span class="toggle-desc">Speaks checkpoint alert and calling status out loud</span>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="toggleVoiceSpeech" checked>
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <div class="toggle-row">
+            <div class="toggle-label-group">
+              <span class="toggle-title">Screen WakeLock</span>
+              <span class="toggle-desc">Keeps screen awake so GPS doesn't sleep in your pocket</span>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="toggleWakeLock" checked>
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <button id="btnSaveConfig" class="btn btn-primary" style="margin-top: 12px;">
+            💾 Save Preferences
+          </button>
+        </div>
+
+        <!-- Dedicated Test Shake Detection Card (Vector Reversal) -->
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title"><span class="icon">👋</span> Hardware Shake Detection Test</h2>
+          </div>
+          <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 12px; line-height: 1.4;">
+            Tests the native gravity-compensated vector-reversal detector. Requires <strong>3 distinct shakes</strong> within 3 seconds.
+          </p>
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <button id="btnToggleTestShake" class="btn btn-outline btn-sm" style="flex: 1; border-color: #38bdf8; color: #38bdf8;">
+              👋 Start Shake Test
+            </button>
+          </div>
+          <div id="shakeTestFeedback" class="shake-test-container" style="display: none; margin-top: 12px;">
+            <div class="shake-pills-row">
+              <span class="shake-step-pill" id="testShakePill1">1</span>
+              <span class="shake-step-pill" id="testShakePill2">2</span>
+              <span class="shake-step-pill" id="testShakePill3">3</span>
+            </div>
+            <div id="testShakeStatus" class="shake-test-status">Waiting for shake gesture...</div>
+          </div>
+        </div>
+
+        <!-- Silent Automated Cloud Messaging (CallMeBot / Webhooks) -->
+        <div class="card">
+          <details>
+            <summary>🌐 Silent Background WhatsApp (CallMeBot / Webhook)</summary>
+            <div style="font-size: 0.78rem; color: var(--text-secondary); margin: 8px 0 10px; line-height: 1.5;">
+              Want WhatsApp to send <strong>100% silently in the background</strong> without opening any apps?
+              <br>Enter a <strong>CallMeBot WhatsApp API Key</strong> or a custom webhook URL (e.g. n8n, Zapier, Telegram).
+            </div>
+            <div class="form-group" style="margin-bottom: 8px;">
+              <label class="form-label" for="inputCallMeBotKey">CallMeBot WhatsApp API Key (Optional)</label>
+              <input type="text" id="inputCallMeBotKey" class="form-input" placeholder="e.g. 123456" style="font-family: 'JetBrains Mono', monospace; font-size: 0.8rem;">
+              <div style="font-size: 0.72rem; color: #94a3b8; margin-top: 5px; line-height: 1.4;">
+                📲 <strong>Quick 1-Minute Setup:</strong>
+                <br>Dad sends <code>I allow callmebot to send me messages</code> to <code>+34 644 44 20 53</code>
+                <br><a href="https://wa.me/34644442053?text=I%20allow%20callmebot%20to%20send%20me%20messages" target="_blank" rel="noopener noreferrer" style="color: #38bdf8; text-decoration: underline; font-weight: 600;">👉 Click here to open WhatsApp & get free key</a>
+              </div>
+            </div>
+            <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+              <button type="button" id="btnTestSilentWhatsApp" class="btn btn-primary btn-sm" style="flex: 1;">
+                🧪 Test WhatsApp to Dad
+              </button>
+            </div>
+            <div class="form-group" style="margin-bottom: 8px;">
+              <label class="form-label" for="inputWebhookUrl">Custom Webhook URL (Optional)</label>
+              <input type="url" id="inputWebhookUrl" class="form-input" placeholder="https://..." style="font-family: 'JetBrains Mono', monospace; font-size: 0.8rem;">
+            </div>
+            <button id="btnSaveWebhookConfig" class="btn btn-outline btn-sm" style="margin-top: 4px;">
+              💾 Save Webhook Config
+            </button>
+          </details>
+        </div>
+
+        <!-- Optional Google Places API Key (Cleanly Collapsible) -->
+        <div class="card">
+          <details>
+            <summary>🗺️ Optional Google Maps / Places API Key</summary>
+            <p style="font-size: 0.76rem; color: var(--text-secondary); margin: 8px 0;">
+              BusAwake includes an instant built-in stop finder. If you have a Google Maps API Key and want to use Google Places autocomplete, paste it below.
+            </p>
+            <div style="display: flex; gap: 8px; margin-top: 6px;">
+              <input type="text" id="inputGoogleApiKey" class="form-input" placeholder="AIzaSy..." style="font-family: 'JetBrains Mono', monospace; font-size: 0.8rem;">
+              <button id="btnSaveGoogleApiKey" class="btn btn-primary btn-sm" style="white-space: nowrap;">Save</button>
+            </div>
+            <div id="googleApiStatusMsg" style="font-size: 0.74rem; color: var(--accent-cyan); margin-top: 6px;">
+              Using Smart Places Finder (No API key required)
+            </div>
+          </details>
+        </div>
+
+        <!-- Past Trip History -->
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title"><span class="icon">📜</span> Past Trip Logs</h2>
+            <button id="btnClearHistory" class="btn btn-outline btn-sm" style="padding: 4px 8px; font-size: 0.72rem;">Clear</button>
+          </div>
+          <div id="historyList" class="saved-items-list">
+            <div style="font-size: 0.8rem; color: var(--text-muted); text-align: center; padding: 10px;">No trips logged yet.</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========================================================= -->
+      <!-- TAB 5: LIVE BUS COCKPIT & TRAFFIC RADAR                   -->
+      <!-- ========================================================= -->
+      <section id="tabCockpit" class="tab-pane">
+
+        <!-- Cockpit Header -->
+        <div class="cockpit-header">
+          <h2 class="cockpit-title">🏎️ Live Bus Cockpit</h2>
+          <div id="cockpitStatusBadge" class="cockpit-status-badge cockpit-idle">
+            <span class="pulse-dot"></span> IDLE
+          </div>
+        </div>
+
+        <!-- Start Commute Button (shown when idle) -->
+        <div id="cockpitStartPanel" class="card" style="text-align: center; padding: 24px 16px;">
+          <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 16px;">Tap below when your bus starts to begin live tracking.</p>
+          <button id="btnStartCockpit" class="btn btn-emerald" style="font-size: 1rem; padding: 14px 32px;">
+            🚌 START BUS COMMUTE
+          </button>
+        </div>
+
+        <!-- Live Dashboard (shown when running) -->
+        <div id="cockpitDashboard" class="cockpit-dashboard" style="display: none;">
+
+          <!-- Row 1: Speedometer + Compass side by side -->
+          <div class="cockpit-gauges-row">
+
+            <!-- Speedometer Gauge -->
+            <div class="cockpit-gauge-card">
+              <div class="cockpit-speedo-wrap">
+                <svg viewBox="0 0 100 100" class="cockpit-speedo-svg">
+                  <!-- Background arc -->
+                  <circle cx="50" cy="50" r="40" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="6"
+                    stroke-dasharray="167.6 251.2" stroke-dashoffset="-41.9" stroke-linecap="round" />
+                  <!-- Speed fill arc -->
+                  <circle id="cockpitArcFill" cx="50" cy="50" r="40" fill="none" stroke="#10b981" stroke-width="6"
+                    stroke-dasharray="0 251.2" stroke-dashoffset="-41.9" stroke-linecap="round"
+                    style="transition: stroke-dasharray 0.5s ease, stroke 0.5s ease;" />
+                  <!-- Tick marks -->
+                  <g stroke="rgba(255,255,255,0.15)" stroke-width="0.5">
+                    <line x1="50" y1="14" x2="50" y2="18" transform="rotate(-120 50 50)" />
+                    <line x1="50" y1="14" x2="50" y2="18" transform="rotate(-60 50 50)" />
+                    <line x1="50" y1="14" x2="50" y2="18" transform="rotate(0 50 50)" />
+                    <line x1="50" y1="14" x2="50" y2="18" transform="rotate(60 50 50)" />
+                    <line x1="50" y1="14" x2="50" y2="18" transform="rotate(120 50 50)" />
+                  </g>
+                  <!-- Speed labels -->
+                  <text x="22" y="78" fill="#475569" font-size="4" text-anchor="middle">0</text>
+                  <text x="12" y="42" fill="#475569" font-size="4" text-anchor="middle">20</text>
+                  <text x="50" y="14" fill="#475569" font-size="4" text-anchor="middle">40</text>
+                  <text x="88" y="42" fill="#475569" font-size="4" text-anchor="middle">60</text>
+                  <text x="78" y="78" fill="#475569" font-size="4" text-anchor="middle">80</text>
+                </svg>
+                <!-- Needle -->
+                <div id="cockpitNeedle" class="cockpit-needle"></div>
+                <!-- Digital Speed -->
+                <div class="cockpit-digital-speed">
+                  <span id="cockpitDigitalSpeed" class="cockpit-speed-number">0</span>
+                  <span id="cockpitSpeedUnit" class="cockpit-speed-unit">km/h</span>
+                </div>
+                <!-- Measured Accuracy & Age Badges -->
+                <div class="cockpit-acc-row">
+                  <span id="cockpitSpeedAccuracy" class="cockpit-badge-acc">Speed: GPS</span>
+                  <span id="cockpitGpsAge" class="cockpit-badge-age">Age: 0s</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Compass Ring -->
+            <div class="cockpit-gauge-card">
+              <div class="cockpit-compass-wrap">
+                <div id="cockpitCompassRing" class="cockpit-compass-ring">
+                  <span class="compass-n">N</span>
+                  <span class="compass-e">E</span>
+                  <span class="compass-s">S</span>
+                  <span class="compass-w">W</span>
+                  <div class="compass-tick tick-n"></div>
+                  <div class="compass-tick tick-e"></div>
+                  <div class="compass-tick tick-s"></div>
+                  <div class="compass-tick tick-w"></div>
+                </div>
+                <div class="cockpit-compass-pointer">▲</div>
+                <div class="cockpit-compass-info">
+                  <span id="cockpitDirection" class="compass-dir-text">N</span>
+                  <span id="cockpitHeadingDeg" class="compass-deg-text">0°</span>
+                </div>
+                <div id="cockpitTurnBadge" class="cockpit-turn-badge" style="display: none;">↩️ TURNING</div>
+                <div id="cockpitHeadingType" class="cockpit-heading-label">Orientation: Compass</div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Row 2: Traffic Zone Badge -->
+          <div id="cockpitTrafficBadge" class="cockpit-traffic-badge">
+            <div id="cockpitTrafficLabel" class="cockpit-traffic-label">🟢 CLEAR ROAD</div>
+            <div id="cockpitTrafficAvg" class="cockpit-traffic-avg">0 km/h avg</div>
+            <div id="cockpitTrafficDetail" class="cockpit-traffic-detail"></div>
+          </div>
+
+          <!-- Row 3: Speed Timeline Chart -->
+          <div class="cockpit-chart-card">
+            <div class="cockpit-chart-header">
+              <span>📈 Speed Timeline</span>
+              <span style="font-size: 0.68rem; color: var(--text-muted);">Last 15 min</span>
+            </div>
+            <div class="cockpit-chart-wrap">
+              <canvas id="cockpitChart"></canvas>
+            </div>
+          </div>
+
+          <!-- Row 4: Trip Stats -->
+          <div class="cockpit-stats-grid">
+            <div class="cockpit-stat-item">
+              <span class="cockpit-stat-label">🏁 Max Speed</span>
+              <span id="cockpitStatMax" class="cockpit-stat-value">0 km/h</span>
+            </div>
+            <div class="cockpit-stat-item">
+              <span class="cockpit-stat-label">📊 Avg Speed</span>
+              <span id="cockpitStatAvg" class="cockpit-stat-value">0 km/h</span>
+            </div>
+            <div class="cockpit-stat-item">
+              <span class="cockpit-stat-label">📏 Distance</span>
+              <span id="cockpitStatDist" class="cockpit-stat-value">0 m</span>
+            </div>
+            <div class="cockpit-stat-item">
+              <span class="cockpit-stat-label">⏱️ Duration</span>
+              <span id="cockpitStatTime" class="cockpit-stat-value">0:00</span>
+            </div>
+          </div>
+
+          <!-- Stop Button -->
+          <button id="btnStopCockpit" class="btn btn-outline" style="width: 100%; margin-top: 12px; border-color: var(--danger); color: var(--danger);">
+            ⏹️ STOP COCKPIT
+          </button>
+
+        </div>
+
+      </section>
+
+    </main>
+
+    <!-- Bottom Navigation Bar -->
+    <nav class="bottom-nav">
+      <button class="nav-item active" data-tab="tabTracker" onclick="window.switchTab('tabTracker')">
+        <span class="nav-icon">🧭</span>
+        <span class="nav-label">Tracker</span>
+      </button>
+      <button class="nav-item" data-tab="tabMap" onclick="window.switchTab('tabMap')">
+        <span class="nav-icon">🗺️</span>
+        <span class="nav-label">Route Map</span>
+      </button>
+      <button class="nav-item" data-tab="tabContacts" onclick="window.switchTab('tabContacts')">
+        <span class="nav-icon">👥</span>
+        <span class="nav-label">Contacts</span>
+      </button>
+      <button class="nav-item" data-tab="tabSettings" onclick="window.switchTab('tabSettings')">
+        <span class="nav-icon">⚙️</span>
+        <span class="nav-label">Settings</span>
+      </button>
+      <button class="nav-item" data-tab="tabCockpit" onclick="window.switchTab('tabCockpit')">
+        <span class="nav-icon">🏎️</span>
+        <span class="nav-label">Cockpit</span>
+      </button>
+    </nav>
+  </div>
+
+  <!-- ========================================================= -->
+  <!-- AMOLED Battery Saver Screen (Sleep Mode Overlay)          -->
+  <!-- ========================================================= -->
+  <div id="sleepOverlay" class="sleep-mode-overlay">
+    <div id="sleepClock" class="sleep-clock">00:00</div>
+
+    <div class="sleep-center-info">
+      <div class="sleep-pulse-indicator"></div>
+      <div id="sleepStopName" class="sleep-stop-name">Approaching Trigger Stop</div>
+      <div id="sleepDistance" class="sleep-distance">-- km</div>
+      <div id="sleepEta" class="sleep-eta">Speed: 0 km/h • ETA: -- mins</div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; align-items: center; gap: 12px; width: 100%;">
+      <p class="sleep-tip">💤 Sleeping in bus • GPS active • Phone will vibrate when reaching checkpoint</p>
+      <button id="btnExitSleep" class="sleep-exit-btn">
+        ✕ Exit Sleep Screen
+      </button>
+    </div>
+  </div>
+
+  <!-- ========================================================= -->
+  <!-- Emergency Wake-Up & Contact Alert Overlay                 -->
+  <!-- ========================================================= -->
+  <div id="alarmOverlay" class="alarm-overlay">
+    <div class="alarm-header">
+      <div class="alarm-badge">📳 CHECKPOINT REACHED 📳</div>
+      <h2 class="alarm-headline" id="alarmHeadline">WAKE UP!</h2>
+      <p class="alarm-subheadline" id="alarmSubheadline">Phone vibrating • Alerting your contact for pickup!</p>
+    </div>
+
+    <!-- Live Auto-Action Countdown Banner -->
+    <div id="alarmAutoActionBanner" class="alarm-auto-action-banner">
+      <div class="countdown-circle">
+        <span id="autoActionCountdownNum">3</span>
+      </div>
+      <div class="auto-action-info">
+        <div class="auto-action-title" id="autoActionHeadline">AUTOMATICALLY CALLING DAD...</div>
+        <div class="auto-action-sub" id="autoActionSub">Dialing in <strong id="autoActionSecText">3 seconds</strong></div>
+      </div>
+      <div style="display: flex; gap: 6px;">
+        <button id="btnExecuteAutoNow" class="btn-auto-now">Now</button>
+        <button id="btnCancelAutoAction" class="btn-auto-cancel">Cancel</button>
+      </div>
+    </div>
+
+    <div class="alarm-actions-container">
+      <!-- 1-Tap Direct Call -->
+      <a id="alarmCallBtn" href="tel:" class="contact-action-btn call">
+        <span id="alarmCallBtnText">📞 CALL CONTACT NOW</span>
+        <span>➔</span>
+      </a>
+
+      <!-- 1-Tap WhatsApp Alert -->
+      <a id="alarmWhatsAppBtn" href="#" target="_blank" class="contact-action-btn whatsapp">
+        <span>💬 SEND WHATSAPP & LIVE GPS</span>
+        <span>➔</span>
+      </a>
+
+      <!-- 1-Tap Fallback SMS -->
+      <a id="alarmSmsBtn" href="sms:" class="contact-action-btn sms">
+        <span>✉️ SEND SMS FALLBACK</span>
+        <span>➔</span>
+      </a>
+    </div>
+
+    <!-- Shake to Silence Feedback Section -->
+    <div id="alarmShakeSection" class="alarm-shake-box">
+      <div class="shake-box-header">
+        <span class="shake-icon">👋</span>
+        <span class="shake-title">SHAKE TO SILENCE</span>
+      </div>
+      <div class="shake-step-pills-row">
+        <span class="shake-pill" id="alarmShakePill1">1</span>
+        <span class="shake-pill" id="alarmShakePill2">2</span>
+        <span class="shake-pill" id="alarmShakePill3">3</span>
+      </div>
+      <p class="shake-hint" id="alarmShakeHint">Shake phone 3 times firmly to stop alarm</p>
+    </div>
+
+    <!-- Dismiss Button -->
+    <div class="dismiss-box">
+      <button id="btnDismissAlarm" class="btn btn-dismiss">
+        ✓ I AM AWAKE - STOP ALARM
+      </button>
+    </div>
+
+    <!-- Post-Alarm Action Modal / Card -->
+    <div id="alarmPostDismissCard" class="alarm-post-dismiss-card" style="display: none;">
+      <div class="post-dismiss-badge">✅ ALARM SILENCED</div>
+      <h3 id="postDismissTitle" style="color: #fff; margin: 10px 0 4px; font-size: 1.15rem;">Near Checkpoint Stop</h3>
+      <p id="postDismissSub" style="color: #cbd5e1; font-size: 0.85rem; margin-bottom: 14px;">Open dialer to call contact for pickup?</p>
+      <div style="display: flex; flex-direction: column; gap: 8px; width: 100%;">
+        <button id="btnPostDismissDial" class="btn btn-emerald" style="width: 100%; font-size: 0.95rem; padding: 12px;">
+          📞 Open Dialer: Dad
+        </button>
+        <button id="btnPostDismissClose" class="btn btn-outline" style="width: 100%; font-size: 0.85rem; padding: 10px;">
+          Done
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Leaflet Map JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- App Core JS Modules -->
+  <script src="js/storage.js?v=2.3"></script>
+  <script src="js/audio.js?v=2.3"></script>
+  <script src="js/geo.js?v=2.3"></script>
+  <script src="js/cockpit.js?v=2.3"></script>
+  <script src="js/app.js?v=2.3"></script>
+
+  <!-- Service Worker Registration -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js')
+          .then(reg => {
+            reg.update();
+            console.log('[SW] Registered:', reg.scope);
+          })
+          .catch(err => console.warn('[SW] Registration notice:', err));
+      });
+    }
+  </script>
+</body>
+</html>
