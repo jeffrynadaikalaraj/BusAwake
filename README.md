@@ -20,20 +20,20 @@
 
 ```mermaid
 graph TD
-    subgraph Native Android Layer (Kotlin)
-        JS[JourneyService - Foreground Service] -->|Location Updates| GF[Native Geofence Evaluator]
-        GF -->|Within Stop Radius| AC[AlarmController]
+    subgraph Native_Layer ["Native Android Layer (Kotlin)"]
+        JS["JourneyService (Foreground Service)"] -->|"Location Updates"| GF["Native Geofence Evaluator"]
+        GF -->|"Within Stop Radius"| AC["AlarmController"]
         
-        HW[Linear Acceleration / Accelerometer] --> SD[ShakeDetector - Vector Reversal]
-        SD -->|Authoritative Count: 3/3| AC
-        AC -->|USAGE_ALARM Audio + Tactile Bursts| SPK[Speaker & Haptics]
+        HW["Linear Acceleration / Accelerometer"] --> SD["ShakeDetector (Vector Reversal)"]
+        SD -->|"Authoritative Count: 3/3"| AC
+        AC -->|"USAGE_ALARM Audio + Tactile Bursts"| SPK["Speaker & Haptics"]
     end
 
-    subgraph Presentation Layer (WebView)
-        JS -->|Speed, Accuracy, Fix Age| AB[AndroidBridge.kt]
-        SD -->|Shake Progress 1/3, 2/3, 3/3| AB
-        AC -->|Alarm State Updates| AB
-        AB -->|evaluateJavascript| WEB[app.js, cockpit.js, index.html]
+    subgraph Presentation_Layer ["Presentation Layer (WebView)"]
+        JS -->|"Speed, Accuracy, Fix Age"| AB["AndroidBridge.kt"]
+        SD -->|"Shake Progress 1/3, 2/3, 3/3"| AB
+        AC -->|"Alarm State Updates"| AB
+        AB -->|"evaluateJavascript"| WEB["app.js, cockpit.js, index.html"]
     end
 ```
 
