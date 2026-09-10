@@ -1376,35 +1376,9 @@ document.addEventListener('DOMContentLoaded', () => {
           showDesktopDialerToast(links);
         }
       }
-    } else if (action === 'auto_whatsapp') {
-      console.log('[Auto-Action] Triggering WhatsApp message to:', links.waDigits || links.phone);
-      if (window.AndroidBridge && typeof window.AndroidBridge.sendWhatsAppAuto === 'function') {
-        window.AndroidBridge.sendWhatsAppAuto(links.waDigits || links.phone, links.rawMessage);
-      } else {
-        window.location.href = links.waLink;
-      }
     } else if (action === 'auto_sms') {
       console.log('[Auto-Action] Triggering SMS to:', links.phone);
       window.location.href = links.smsLink;
-    } else if (action === 'auto_call_and_wa') {
-      console.log('[Auto-Action] Triggering combo call + WhatsApp');
-      if (window.AndroidBridge && typeof window.AndroidBridge.makeDirectCall === 'function') {
-        window.AndroidBridge.makeDirectCall(targetPhone);
-      } else if (window.AndroidBridge && typeof window.AndroidBridge.openDialer === 'function') {
-        window.AndroidBridge.openDialer(targetPhone);
-      } else {
-        window.location.href = links.telLink;
-        if (!isMobileDevice) {
-          showDesktopDialerToast(links);
-        }
-      }
-      setTimeout(() => {
-        if (window.AndroidBridge && typeof window.AndroidBridge.sendWhatsAppAuto === 'function') {
-          window.AndroidBridge.sendWhatsAppAuto(links.waDigits || links.phone, links.rawMessage);
-        } else {
-          try { window.open(links.waLink, '_blank'); } catch (e) {}
-        }
-      }, 1000);
     }
   }
 
@@ -2279,17 +2253,6 @@ document.addEventListener('DOMContentLoaded', () => {
       alert(key ? '✓ Google Maps API key saved!' : '✓ Switched to built-in smart places search.');
     });
 
-    // WhatsApp Accessibility Setup Button
-    const btnEnableAccessibility = document.getElementById('btnEnableAccessibility');
-    if (btnEnableAccessibility) {
-      on(btnEnableAccessibility, 'click', () => {
-        if (window.AndroidBridge && typeof window.AndroidBridge.openAccessibilitySettings === 'function') {
-          window.AndroidBridge.openAccessibilitySettings();
-        } else {
-          alert('📱 On your phone, open Settings -> Accessibility -> Installed/Downloaded Apps -> BusAwake, and toggle it ON to enable WhatsApp auto-send!');
-        }
-      });
-    }
 
     // Simulation & Vibrate Direct Test
     on(els.btnSimulateRide, 'click', () => {
