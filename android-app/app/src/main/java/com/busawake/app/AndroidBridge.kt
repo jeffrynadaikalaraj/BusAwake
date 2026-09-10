@@ -38,6 +38,47 @@ class AndroidBridge(
     }
 
     /**
+     * Directly places a cellular phone call automatically without requiring the user
+     * to tap the green dialer button. Falls back to ACTION_DIAL if permission not granted.
+     */
+    @JavascriptInterface
+    fun makeDirectCall(phoneNumber: String) {
+        val cleanNumber = phoneNumber.trim().replace(" ", "").replace("-", "")
+        Log.i(TAG, "makeDirectCall called with: $phoneNumber (clean: $cleanNumber)")
+        if (cleanNumber.isEmpty()) {
+            activity.runOnUiThread {
+                Toast.makeText(activity, "⚠️ Phone number is empty", Toast.LENGTH_SHORT).show()
+            }
+            return
+        }
+
+        activity.runOnUiThread {
+            try {
+                val hasCallPermission = ContextCompat.checkSelfPermission(
+                    activity,
+                    android.Manifest.permission.CALL_PHONE
+                ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+
+                val phoneUri = Uri.fromParts("tel", cleanNumber, null)
+                val intent = if (hasCallPermission) {
+                    Intent(Intent.ACTION_CALL, phoneUri).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    }
+                } else {
+                    Intent(Intent.ACTION_DIAL, phoneUri).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    }
+                }
+                activity.startActivity(intent)
+                Log.i(TAG, "Successfully initiated ${if (hasCallPermission) "ACTION_CALL (automatic direct call)" else "ACTION_DIAL"} for: $phoneUri")
+            } catch (e: Exception) {
+                Log.e(TAG, "makeDirectCall failed, falling back to dialer", e)
+                openDialer(cleanNumber)
+            }
+        }
+    }
+
+    /**
      * Opens Android's system dialer with the phone number pre-filled.
      * Uses Uri.fromParts to safely preserve '+' for country codes without percent-encoding issues.
      */

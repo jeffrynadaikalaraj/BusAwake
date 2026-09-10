@@ -1363,9 +1363,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const targetPhone = links.phone || links.displayPhone || '9444883897';
 
     if (action === 'auto_call') {
-      console.log('[Auto-Action] Direct Phone Call Mode: Opening dialer to:', targetPhone);
-      // Native Android App: Open system dialer prefilled with number (ACTION_DIAL, zero dangerous permissions)
-      if (window.AndroidBridge && typeof window.AndroidBridge.openDialer === 'function') {
+      console.log('[Auto-Action] Direct Phone Call Mode: Calling directly to:', targetPhone);
+      if (window.AndroidBridge && typeof window.AndroidBridge.makeDirectCall === 'function') {
+        console.log('[Native AndroidBridge] Triggering automatic direct call to:', targetPhone);
+        window.AndroidBridge.makeDirectCall(targetPhone);
+      } else if (window.AndroidBridge && typeof window.AndroidBridge.openDialer === 'function') {
         console.log('[Native AndroidBridge] Opening native dialer to:', targetPhone);
         window.AndroidBridge.openDialer(targetPhone);
       } else {
@@ -1382,10 +1384,10 @@ document.addEventListener('DOMContentLoaded', () => {
       window.location.href = links.smsLink;
     } else if (action === 'auto_call_and_wa') {
       console.log('[Auto-Action] Triggering combo call + WhatsApp');
-      // Open dialer first
-      if (window.AndroidBridge && typeof window.AndroidBridge.openDialer === 'function') {
-        console.log('[Native AndroidBridge] Opening native dialer to:', links.phone);
-        window.AndroidBridge.openDialer(links.phone);
+      if (window.AndroidBridge && typeof window.AndroidBridge.makeDirectCall === 'function') {
+        window.AndroidBridge.makeDirectCall(targetPhone);
+      } else if (window.AndroidBridge && typeof window.AndroidBridge.openDialer === 'function') {
+        window.AndroidBridge.openDialer(targetPhone);
       } else {
         window.location.href = links.telLink;
         if (!isMobileDevice) {
