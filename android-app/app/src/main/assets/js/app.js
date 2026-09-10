@@ -1377,8 +1377,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
     } else if (action === 'auto_whatsapp') {
-      console.log('[Auto-Action] Triggering WhatsApp message to:', links.phone);
-      window.location.href = links.waLink;
+      console.log('[Auto-Action] Triggering WhatsApp message to:', links.waDigits || links.phone);
+      if (window.AndroidBridge && typeof window.AndroidBridge.sendWhatsAppAuto === 'function') {
+        window.AndroidBridge.sendWhatsAppAuto(links.waDigits || links.phone, links.rawMessage);
+      } else {
+        window.location.href = links.waLink;
+      }
     } else if (action === 'auto_sms') {
       console.log('[Auto-Action] Triggering SMS to:', links.phone);
       window.location.href = links.smsLink;
@@ -1395,8 +1399,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
       setTimeout(() => {
-        try { window.open(links.waLink, '_blank'); } catch (e) {}
-      }, 700);
+        if (window.AndroidBridge && typeof window.AndroidBridge.sendWhatsAppAuto === 'function') {
+          window.AndroidBridge.sendWhatsAppAuto(links.waDigits || links.phone, links.rawMessage);
+        } else {
+          try { window.open(links.waLink, '_blank'); } catch (e) {}
+        }
+      }, 1000);
     }
   }
 
@@ -2270,6 +2278,18 @@ document.addEventListener('DOMContentLoaded', () => {
       window.StorageManager.saveSettings(currentSettings);
       alert(key ? '✓ Google Maps API key saved!' : '✓ Switched to built-in smart places search.');
     });
+
+    // WhatsApp Accessibility Setup Button
+    const btnEnableAccessibility = document.getElementById('btnEnableAccessibility');
+    if (btnEnableAccessibility) {
+      on(btnEnableAccessibility, 'click', () => {
+        if (window.AndroidBridge && typeof window.AndroidBridge.openAccessibilitySettings === 'function') {
+          window.AndroidBridge.openAccessibilitySettings();
+        } else {
+          alert('📱 On your phone, open Settings -> Accessibility -> Installed/Downloaded Apps -> BusAwake, and toggle it ON to enable WhatsApp auto-send!');
+        }
+      });
+    }
 
     // Simulation & Vibrate Direct Test
     on(els.btnSimulateRide, 'click', () => {

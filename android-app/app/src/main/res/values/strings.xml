@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">BusAwake</string>
+    <string name="accessibility_service_description">Automatically taps Send in WhatsApp when you reach your commute checkpoint so you do not have to click anything.</string>
 </resources>

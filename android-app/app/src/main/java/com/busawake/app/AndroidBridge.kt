@@ -118,6 +118,89 @@ class AndroidBridge(
     }
 
     /**
+     * Dispatches WhatsApp message and arms the Accessibility Auto-Sender Service
+     * to automatically tap Send if enabled in system settings.
+     */
+    @JavascriptInterface
+    fun sendWhatsAppAuto(phoneNumber: String, message: String) {
+        val cleanDigits = phoneNumber.trim().replace("+", "").replace(" ", "").replace("-", "")
+        Log.i(TAG, "sendWhatsAppAuto called: digits='$cleanDigits'")
+        if (cleanDigits.isEmpty()) {
+            activity.runOnUiThread {
+                Toast.makeText(activity, "⚠️ WhatsApp contact number is empty", Toast.LENGTH_SHORT).show()
+            }
+            return
+        }
+
+        activity.runOnUiThread {
+            try {
+                // Check if Accessibility Service is active; if so, arm it
+                val isServiceActive = WhatsAppAutoSenderService.isServiceActive || isAccessibilityServiceEnabled()
+                if (isServiceActive) {
+                    WhatsAppAutoSenderService.arm()
+                    Log.i(TAG, "WhatsApp Auto-Clicker armed for automated send!")
+                } else {
+                    Toast.makeText(activity, "ℹ️ Enable BusAwake in Accessibility Settings to auto-send without tapping!", Toast.LENGTH_LONG).show()
+                }
+
+                val waUri = Uri.parse("https://api.whatsapp.com/send?phone=$cleanDigits&text=${Uri.encode(message)}")
+                val intent = Intent(Intent.ACTION_VIEW, waUri).apply {
+                    setPackage("com.whatsapp")
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                try {
+                    activity.startActivity(intent)
+                } catch (pkgErr: Exception) {
+                    // Try WhatsApp Business or default handler
+                    val fallbackIntent = Intent(Intent.ACTION_VIEW, waUri).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    }
+                    activity.startActivity(fallbackIntent)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to launch WhatsApp intent", e)
+                Toast.makeText(activity, "⚠️ Unable to open WhatsApp: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    /**
+     * Checks if WhatsAppAutoSenderService is enabled in Android system settings.
+     */
+    @JavascriptInterface
+    fun isAccessibilityServiceEnabled(): Boolean {
+        return try {
+            val expectedComponentName = "${activity.packageName}/${WhatsAppAutoSenderService::class.java.canonicalName}"
+            val enabledServices = android.provider.Settings.Secure.getString(
+                activity.contentResolver,
+                android.provider.Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+            ) ?: ""
+            enabledServices.contains(activity.packageName) || WhatsAppAutoSenderService.isServiceActive
+        } catch (e: Exception) {
+            WhatsAppAutoSenderService.isServiceActive
+        }
+    }
+
+    /**
+     * Opens Android's system Accessibility Settings page so user can toggle BusAwake ON.
+     */
+    @JavascriptInterface
+    fun openAccessibilitySettings() {
+        activity.runOnUiThread {
+            try {
+                val intent = Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                activity.startActivity(intent)
+                Toast.makeText(activity, "👉 Turn ON 'BusAwake' under Installed / Downloaded Apps", Toast.LENGTH_LONG).show()
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to open Accessibility Settings", e)
+                Toast.makeText(activity, "⚠️ Please open Settings -> Accessibility manually", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    /**
      * Starts native alarm sound, vibration, and shake detection.
      * Works both during active background trip and during manual/simulator tests.
      */

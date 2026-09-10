@@ -1,22 +1,23 @@
 $env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"
 $env:PATH = "C:\Program Files\Android\Android Studio\jbr\bin;" + $env:PATH
 $gradleBat = "C:\Users\hp\.gradle\wrapper\dists\gradle-8.7-bin\bhs2wmbdwecv87pi65oeuq5iu\gradle-8.7\bin\gradle.bat"
-$root = "C:\Users\hp\OneDrive\Desktop\ot bus stand\ot bus stand"
+$root = $PSScriptRoot
 $appDir = "$root\android-app"
 $assetsDir = "$appDir\app\src\main\assets"
 
 Write-Host "Syncing latest web assets to Android assets..." -ForegroundColor Yellow
-if (-not (Test-Path $assetsDir)) {
-    New-Item -ItemType Directory -Path $assetsDir -Force | Out-Null
+if (Test-Path $assetsDir) {
+    Remove-Item -Recurse -Force $assetsDir -ErrorAction SilentlyContinue
 }
+New-Item -ItemType Directory -Path $assetsDir -Force | Out-Null
 
 # Copy web files
 Copy-Item "$root\index.html" "$assetsDir\index.html" -Force
 Copy-Item "$root\manifest.json" "$assetsDir\manifest.json" -Force -ErrorAction SilentlyContinue
 Copy-Item "$root\sw.js" "$assetsDir\sw.js" -Force -ErrorAction SilentlyContinue
-Copy-Item "$root\js" "$assetsDir\js" -Recurse -Force
-Copy-Item "$root\css" "$assetsDir\css" -Recurse -Force
-Copy-Item "$root\icons" "$assetsDir\icons" -Recurse -Force -ErrorAction SilentlyContinue
+Copy-Item "$root\js" "$assetsDir" -Recurse -Force
+Copy-Item "$root\css" "$assetsDir" -Recurse -Force
+Copy-Item "$root\icons" "$assetsDir" -Recurse -Force -ErrorAction SilentlyContinue
 
 Write-Host "Web assets synced successfully!" -ForegroundColor Green
 
