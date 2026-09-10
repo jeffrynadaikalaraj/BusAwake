@@ -2,6 +2,11 @@
 
 **BusAwake** is a reliable transit wake-up alarm and commute cockpit designed for daily bus passengers. It monitors your commute via GPS and sounds an alert before you reach your designated checkpoint, helping you avoid missing your bus stop.
 
+[![Download Android APK](https://img.shields.io/badge/Download-BusAwake.apk-brightgreen?style=for-the-badge&logo=android)](https://github.com/jeffrynadaikalaraj/BusAwake/releases/download/v1.0.0/BusAwake.apk)
+[![GitHub Release](https://img.shields.io/github/v/release/jeffrynadaikalaraj/BusAwake?style=for-the-badge&color=blue)](https://github.com/jeffrynadaikalaraj/BusAwake/releases/latest)
+
+> **📱 Direct Mobile Install**: Tap **[Download BusAwake.apk](https://github.com/jeffrynadaikalaraj/BusAwake/releases/download/v1.0.0/BusAwake.apk)** directly on your Android phone to install!
+
 ---
 
 ## ✨ Features
