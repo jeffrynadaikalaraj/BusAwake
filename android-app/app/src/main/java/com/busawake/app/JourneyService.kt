@@ -73,9 +73,9 @@ class JourneyService : Service(), LocationListener {
 
     var listener: JourneyListener? = null
 
-    // Target journey parameters
-    var targetLat: Double = 13.1143
-    var targetLng: Double = 80.1548
+    // Target journey parameters (Default: Ambattur OT Bus Stand exact coordinates)
+    var targetLat: Double = 13.1228
+    var targetLng: Double = 80.1484
     var targetRadiusMeters: Float = 400.0f
     var targetStopName: String = "Ambattur OT Bus Stand"
     var contactName: String = "Dad"
@@ -83,6 +83,9 @@ class JourneyService : Service(), LocationListener {
 
     var isTripActive: Boolean = false
         private set
+
+    private var tripStartTimeNanos: Long = 0L
+    private var tripStartTimeMs: Long = 0L
 
     // Single-trip trigger latch to prevent duplicate alarm cycles
     private var hasTriggeredForStop = false
@@ -142,6 +145,20 @@ class JourneyService : Service(), LocationListener {
             override fun onAlarmStarted(reason: String) {
                 Log.i(TAG, "Alarm started natively: $reason")
                 shakeDetector.start()
+
+                // Wake up device screen for immediate high-urgency alert visibility
+                try {
+                    val pm = getSystemService(Context.POWER_SERVICE) as? PowerManager
+                    @Suppress("DEPRECATION")
+                    val alertWakeLock = pm?.newWakeLock(
+                        PowerManager.FULL_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP or PowerManager.ON_AFTER_RELEASE,
+                        "BusAwake::AlertScreenWakeLock"
+                    )
+                    alertWakeLock?.acquire(30_000L) // 30s screen light-up
+                } catch (e: Exception) {
+                    Log.w(TAG, "Notice acquiring screen wake lock: ${e.message}")
+                }
+
                 updateNotification(
                     title = "🚨 WAKE UP! NEAR STOP!",
                     text = "Near $targetStopName! Shake phone 3 times or tap Silence.",
@@ -167,8 +184,8 @@ class JourneyService : Service(), LocationListener {
 
         when (intent.action) {
             ACTION_START -> {
-                targetLat = intent.getDoubleExtra(EXTRA_TARGET_LAT, 13.1143)
-                targetLng = intent.getDoubleExtra(EXTRA_TARGET_LNG, 80.1548)
+                targetLat = intent.getDoubleExtra(EXTRA_TARGET_LAT, 13.1228)
+                targetLng = intent.getDoubleExtra(EXTRA_TARGET_LNG, 80.1484)
                 targetRadiusMeters = intent.getFloatExtra(EXTRA_TARGET_RADIUS, 400f)
                 targetStopName = intent.getStringExtra(EXTRA_TARGET_NAME) ?: "Ambattur OT Bus Stand"
                 contactName = intent.getStringExtra(EXTRA_CONTACT_NAME) ?: "Dad"
@@ -198,26 +215,51 @@ class JourneyService : Service(), LocationListener {
         }
         isTripActive = true
         hasTriggeredForStop = false
+        tripStartTimeNanos = SystemClock.elapsedRealtimeNanos()
+        tripStartTimeMs = System.currentTimeMillis()
 
         acquireWakeLock()
         startForegroundWithNotification()
 
+        // 1. Immediately evaluate last known position for instant lock
         try {
-            // Register GPS Provider
+            val lastGps = locationManager?.getLastKnownLocation(LocationManager.GPS_PROVIDER)
+            val lastNet = locationManager?.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
+            val bestInitial = listOfNotNull(lastGps, lastNet).maxByOrNull { it.time }
+            if (bestInitial != null && (System.currentTimeMillis() - bestInitial.time) < 45_000L) {
+                Log.i(TAG, "Using fresh last known location for initial distance lock")
+                onLocationChanged(bestInitial)
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Notice reading initial cached location: ${e.message}")
+        }
+
+        try {
+            // Register GPS Provider (minDistance = 0m so updates continue when stationary at bus stand)
             locationManager?.requestLocationUpdates(
                 LocationManager.GPS_PROVIDER,
-                2000L,
-                3.0f,
+                1000L,
+                0.0f,
                 this
             )
 
             // Register Network Provider for quick initial fix
             locationManager?.requestLocationUpdates(
                 LocationManager.NETWORK_PROVIDER,
-                3000L,
-                5.0f,
+                2000L,
+                0.0f,
                 this
             )
+
+            // Also register Passive Provider if available to capture fixes from any other running map/apps
+            if (locationManager?.allProviders?.contains(LocationManager.PASSIVE_PROVIDER) == true) {
+                locationManager?.requestLocationUpdates(
+                    LocationManager.PASSIVE_PROVIDER,
+                    1000L,
+                    0.0f,
+                    this
+                )
+            }
             Log.i(TAG, "Location listeners registered for $targetStopName")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to register location updates", e)
@@ -304,16 +346,25 @@ class JourneyService : Service(), LocationListener {
             distToTarget
         )
 
-        // 6. Geofence Evaluation with single-trip latch and freshness check
-        if (!hasTriggeredForStop && distToTarget <= targetRadiusMeters) {
-            // Discard fixes older than 10 seconds to prevent triggering on stale cached coordinates
-            if (ageMs <= 10_000L) {
+        // 6. Geofence Evaluation with single-trip latch, accuracy tolerance, and pre-trip fix filter
+        val accuracyTolerance = if (accuracyMeters > 0) Math.min(accuracyMeters / 2.0f, 40.0f) else 0.0f
+        val effectiveRadius = targetRadiusMeters + accuracyTolerance
+
+        if (!hasTriggeredForStop && distToTarget <= effectiveRadius) {
+            // Check if fix was captured before this specific journey started
+            val isPreTripCachedFix = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
+                location.elapsedRealtimeNanos < (tripStartTimeNanos - 5_000_000_000L) // Fix older than 5s before trip start
+            } else {
+                location.time < (tripStartTimeMs - 5_000L)
+            }
+
+            if (!isPreTripCachedFix) {
                 hasTriggeredForStop = true
-                Log.i(TAG, "🎯 GEOFENCE TRIGGERED! Distance $distToTarget <= $targetRadiusMeters m (age: ${ageMs}ms)")
+                Log.i(TAG, "🎯 GEOFENCE TRIGGERED! Distance $distToTarget <= $effectiveRadius m (targetRadius: $targetRadiusMeters m, acc: ${accuracyMeters}m, age: ${ageMs}ms)")
                 alarmController.triggerAlarm("Near stop: $targetStopName")
                 listener?.onAlarmTriggered(targetStopName, distToTarget)
             } else {
-                Log.w(TAG, "Ignoring geofence hit from stale GPS fix (age: ${ageMs}ms)")
+                Log.w(TAG, "Ignoring geofence hit from pre-trip cached GPS fix (age: ${ageMs}ms)")
             }
         }
     }
@@ -368,6 +419,7 @@ class JourneyService : Service(), LocationListener {
         if (isAlert) {
             builder.setPriority(NotificationCompat.PRIORITY_MAX)
                 .setCategory(NotificationCompat.CATEGORY_ALARM)
+                .setFullScreenIntent(pendingLaunch, true)
 
             // Direct Silence Alarm Action in Notification Shade
             val dismissIntent = Intent(this, JourneyService::class.java).apply {

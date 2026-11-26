@@ -65,18 +65,18 @@ class CockpitEngine {
   // =========================================================================
   // KALMAN FILTER — Sensor Fusion for Speed
   // =========================================================================
-  kalmanUpdate(measurement) {
-    // Prediction step (speed doesn't change much between ticks)
+  kalmanUpdate(measurement, dtSeconds = 1) {
+    const dt = Math.max(0.1, Math.min(Number.isFinite(dtSeconds) ? dtSeconds : 1, 10));
+    // Prediction step scaled by actual elapsed time step
     const predicted = this.kalmanSpeed;
-    const predictedP = this.kalmanP + this.kalmanQ;
+    const predictedP = this.kalmanP + this.kalmanQ * dt;
 
     // Update step
     const K = predictedP / (predictedP + this.kalmanR);
     this.kalmanSpeed = predicted + K * (measurement - predicted);
     this.kalmanP = (1 - K) * predictedP;
 
-    // Clamp to reasonable bus speed
-    this.kalmanSpeed = Math.max(0, Math.min(this.kalmanSpeed, 120));
+    this.kalmanSpeed = Math.max(0, this.kalmanSpeed);
     return this.kalmanSpeed;
   }
 
@@ -585,10 +585,10 @@ class CockpitEngine {
 
     const now = Date.now();
 
-    // 1. Get raw measured GPS speed directly from location provider
-    let gpsSpeed = (data.speedKmh !== undefined && data.speedKmh >= 0) ? data.speedKmh : 0;
-    const smoothedSpeed = gpsSpeed;
-    this.kalmanSpeed = smoothedSpeed;
+    // 1. Get raw measured GPS speed directly from location provider and smooth with dt
+    const gpsSpeed = (data.speedKmh !== undefined && data.speedKmh >= 0) ? data.speedKmh : 0;
+    const dtSeconds = this.lastFixTime > 0 ? (now - this.lastFixTime) / 1000 : 1;
+    const smoothedSpeed = this.kalmanUpdate(gpsSpeed, dtSeconds);
 
     this.lastFixTime = now;
     this.lastSpeedAccuracyKmh = data.speedAccuracyKmh;

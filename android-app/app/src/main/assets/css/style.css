@@ -1857,3 +1857,513 @@ details[open] summary {
   from { opacity: 0; transform: translateY(20px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+
+/* ==========================================================================
+   Extracted Inline Style Classes (Audit Fix: Remove Inline Styles)
+   ========================================================================== */
+
+/* Flex column with gap-10 (used for button stacks) */
+.flex-col-gap-10 {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Quick test card header */
+.quick-test-header {
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: #f8fafc;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* 2-column grid with gap-8 */
+.grid-2col-gap-8 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+/* Quick test status text */
+.quick-test-status {
+  font-size: 0.7rem;
+  color: var(--accent-cyan);
+  margin-top: 6px;
+  text-align: center;
+}
+
+/* Audio test button */
+.btn-audio-test {
+  margin-top: 8px;
+  font-size: 0.76rem;
+  border-color: #f59e0b;
+  color: #f59e0b;
+  width: 100%;
+}
+
+/* Volume status note */
+.volume-note {
+  font-size: 0.7rem;
+  color: #cbd5e1;
+  margin-top: 4px;
+  text-align: center;
+  display: none;
+}
+
+/* Card compact padding */
+.card-compact {
+  padding: 12px 16px;
+}
+
+/* Details description text */
+.details-desc {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  margin: 8px 0 12px;
+}
+
+/* Map layer bar layout */
+.map-layer-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* Map layer label */
+.map-layer-label {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+/* Chips flex row */
+.chips-flex-row {
+  display: flex;
+  gap: 8px;
+}
+
+/* Chip button full-width centered */
+.chip-full-center {
+  flex: 1;
+  justify-content: center;
+}
+
+/* Form group no bottom margin */
+.form-group-mb-12 {
+  margin-bottom: 12px;
+}
+
+/* Flex row with gap and bottom align */
+.flex-row-gap-8-end {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  margin-bottom: 12px;
+}
+
+/* Flex-1 no margin bottom */
+.flex-1-no-mb {
+  flex: 1;
+  margin-bottom: 0;
+}
+
+/* Button nowrap fixed height */
+.btn-nowrap-44 {
+  white-space: nowrap;
+  height: 44px;
+}
+
+/* Slider row between */
+.slider-label-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* Slider hint text */
+.slider-hint {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+/* Save buttons col */
+.save-buttons-col {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+/* Contact phone row */
+.phone-label-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* Phone formatted preview */
+.phone-preview {
+  font-size: 0.72rem;
+  color: #34d399;
+  margin-top: 4px;
+  font-weight: 600;
+}
+
+/* Save button margin top 4 */
+.mt-4 {
+  margin-top: 4px;
+}
+
+/* Auto-action description */
+.auto-action-desc {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+}
+
+/* Form group margins for auto-action */
+.form-group-mt-14-mb-10 {
+  margin-top: 14px;
+  margin-bottom: 10px;
+}
+
+/* Contact form row */
+.contact-form-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+/* Input flex widths */
+.input-flex-1 {
+  flex: 1;
+}
+
+.input-flex-1-2 {
+  flex: 1.2;
+}
+
+/* Saved contacts list margin */
+.saved-contacts-mt {
+  margin-top: 14px;
+}
+
+/* Message template actions row */
+.msg-actions-row {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+/* Small tag insert button */
+.btn-tag-insert {
+  font-size: 0.72rem;
+  padding: 4px 10px;
+}
+
+/* Message preview label */
+.msg-preview-label {
+  font-size: 0.7rem;
+  color: var(--accent-cyan);
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+/* Message preview text */
+.msg-preview-text {
+  font-size: 0.8rem;
+  color: #f1f5f9;
+  margin-top: 4px;
+  font-style: italic;
+  white-space: pre-wrap;
+}
+
+/* Toggle section margin top */
+.toggle-section-mt {
+  margin-top: 12px;
+}
+
+/* Save message button */
+.btn-save-msg {
+  margin-top: 10px;
+}
+
+/* Test actions col */
+.test-actions-col {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Colored outline buttons */
+.btn-outline-green {
+  color: #34d399;
+}
+
+.btn-outline-wa-green {
+  color: #22c55e;
+}
+
+.btn-outline-blue {
+  color: #38bdf8;
+}
+
+/* Sound preference margin */
+.form-group-mb-14 {
+  margin-bottom: 14px;
+}
+
+/* Pre-trip audio test section */
+.audio-test-section {
+  margin-top: 10px;
+  margin-bottom: 8px;
+}
+
+/* Audio test btn full width */
+.btn-audio-test-full {
+  width: 100%;
+  border-color: #f59e0b;
+  color: #f59e0b;
+}
+
+/* Volume note settings */
+.volume-note-settings {
+  font-size: 0.72rem;
+  color: #cbd5e1;
+  margin-top: 4px;
+  text-align: center;
+  display: none;
+}
+
+/* Save pref button */
+.btn-save-pref {
+  margin-top: 12px;
+}
+
+/* Shake test description */
+.shake-desc {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+  line-height: 1.4;
+}
+
+/* Shake test row */
+.shake-test-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+/* Shake test button */
+.btn-shake-test {
+  flex: 1;
+  border-color: #38bdf8;
+  color: #38bdf8;
+}
+
+/* Shake feedback wrapper */
+.shake-feedback-wrap {
+  display: none;
+  margin-top: 12px;
+}
+
+/* CallMeBot section description */
+.callmebot-desc {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  margin: 8px 0 10px;
+  line-height: 1.5;
+}
+
+/* CallMeBot form group */
+.form-group-mb-8 {
+  margin-bottom: 8px;
+}
+
+/* Mono input */
+.input-mono {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.8rem;
+}
+
+/* CallMeBot setup hint */
+.callmebot-hint {
+  font-size: 0.72rem;
+  color: #94a3b8;
+  margin-top: 5px;
+  line-height: 1.4;
+}
+
+/* CallMeBot WhatsApp link */
+.callmebot-link {
+  color: #38bdf8;
+  text-decoration: underline;
+  font-weight: 600;
+}
+
+/* Test buttons row */
+.test-buttons-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+/* Test button flex */
+.btn-test-flex {
+  flex: 1;
+}
+
+/* Webhook save button margin */
+.btn-webhook-save {
+  margin-top: 4px;
+}
+
+/* Google API key desc */
+.google-api-desc {
+  font-size: 0.76rem;
+  color: var(--text-secondary);
+  margin: 8px 0;
+}
+
+/* Google API key row */
+.google-api-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+/* Google API status */
+.google-api-status {
+  font-size: 0.74rem;
+  color: var(--accent-cyan);
+  margin-top: 6px;
+}
+
+/* History clear btn */
+.btn-history-clear {
+  padding: 4px 8px;
+  font-size: 0.72rem;
+}
+
+/* Empty history msg */
+.empty-history {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 10px;
+}
+
+/* Cockpit start panel */
+.cockpit-start-text {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin-bottom: 16px;
+}
+
+/* Cockpit start button */
+.btn-cockpit-start {
+  font-size: 1rem;
+  padding: 14px 32px;
+}
+
+/* Cockpit chart time label */
+.chart-time-label {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+}
+
+/* Cockpit stop btn */
+.btn-cockpit-stop {
+  width: 100%;
+  margin-top: 12px;
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+/* Sleep overlay flex col */
+.sleep-controls-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+
+/* Alarm auto-action buttons row */
+.alarm-auto-btns {
+  display: flex;
+  gap: 6px;
+}
+
+/* Post-dismiss card (hidden) */
+.alarm-post-dismiss-hidden {
+  display: none;
+}
+
+/* Post-dismiss title */
+.post-dismiss-title {
+  color: #fff;
+  margin: 10px 0 4px;
+  font-size: 1.15rem;
+}
+
+/* Post-dismiss subtitle */
+.post-dismiss-sub {
+  color: #cbd5e1;
+  font-size: 0.85rem;
+  margin-bottom: 14px;
+}
+
+/* Post-dismiss actions col */
+.post-dismiss-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+/* Post-dismiss dial button */
+.btn-post-dial {
+  width: 100%;
+  font-size: 0.95rem;
+  padding: 12px;
+}
+
+/* Post-dismiss close button */
+.btn-post-close {
+  width: 100%;
+  font-size: 0.85rem;
+  padding: 10px;
+}
+
+/* Select font weight bold */
+.select-bold {
+  font-weight: 700;
+}
+
+/* Textarea message input */
+.textarea-msg {
+  resize: vertical;
+  font-size: 0.82rem;
+}
+
+/* Utility & remaining extracted inline classes */
+.is-hidden {
+  display: none;
+}
+
+.cockpit-start-panel {
+  text-align: center;
+  padding: 24px 16px;
+}
+
+.cockpit-arc-fill {
+  transition: stroke-dasharray 0.5s ease, stroke 0.5s ease;
+}

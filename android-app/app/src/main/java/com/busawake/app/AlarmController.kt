@@ -148,6 +148,22 @@ class AlarmController(private val context: Context) {
         try {
             stopAudio()
 
+            // Guarantee alarm audibility by boosting STREAM_ALARM if muted or too low
+            try {
+                val am = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+                if (am != null) {
+                    val maxVol = am.getStreamMaxVolume(AudioManager.STREAM_ALARM)
+                    val curVol = am.getStreamVolume(AudioManager.STREAM_ALARM)
+                    val minSafeVol = (maxVol * 0.75f).toInt().coerceAtLeast(1)
+                    if (curVol < minSafeVol) {
+                        am.setStreamVolume(AudioManager.STREAM_ALARM, minSafeVol, 0)
+                        Log.i(TAG, "Boosted alarm stream volume from $curVol to safe level $minSafeVol / $maxVol")
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Notice checking alarm volume: ${e.message}")
+            }
+
             var alertUri: Uri? = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
             if (alertUri == null) {
                 alertUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)

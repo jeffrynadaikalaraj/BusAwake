@@ -11,14 +11,14 @@ class AlarmEngine {
   }
 
   // Pre-warms Web Audio and SpeechSynthesis during user interaction (Start Trip / Test click)
-  unlockAudio() {
+  async unlockAudio() {
     try {
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
       if (AudioCtx && !this.audioCtx) {
         this.audioCtx = new AudioCtx();
       }
       if (this.audioCtx && this.audioCtx.state === 'suspended') {
-        this.audioCtx.resume();
+        await this.audioCtx.resume();
       }
       if ('speechSynthesis' in window) {
         // Prime speech synthesis with a silent utterance
@@ -26,8 +26,9 @@ class AlarmEngine {
         silentUtterance.volume = 0.01;
         window.speechSynthesis.speak(silentUtterance);
       }
-      this.isUnlocked = true;
+      this.isUnlocked = !this.audioCtx || this.audioCtx.state === 'running';
     } catch (e) {
+      this.isUnlocked = false;
       console.warn('[AlarmEngine] Unlock audio warning:', e);
     }
   }
@@ -38,6 +39,7 @@ class AlarmEngine {
     this.isVibrating = true;
 
     const pattern = [1200, 300, 1200, 300, 1600, 400];
+    const patternDurationMs = pattern.reduce((sum, ms) => sum + ms, 0);
 
     const pulse = () => {
       if (navigator.vibrate && this.isVibrating) {
@@ -47,7 +49,7 @@ class AlarmEngine {
 
     pulse();
     if (this.vibrationInterval) clearInterval(this.vibrationInterval);
-    this.vibrationInterval = setInterval(pulse, 3800);
+    this.vibrationInterval = setInterval(pulse, patternDurationMs);
   }
 
   stopVibration() {

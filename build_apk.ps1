@@ -38,7 +38,7 @@ if (Test-Path $apkSource) {
     $apkSize = (Get-Item $apkSource).Length / 1MB
     Write-Host ("`n[SUCCESS] APK BUILT SUCCESSFULLY! Size: {0:N2} MB" -f $apkSize) -ForegroundColor Green
     Copy-Item $apkSource -Destination "$root\BusAwake.apk" -Force
-    Copy-Item $apkSource -Destination "C:\Users\hp\OneDrive\Desktop\BusAwake.apk" -Force
+    Copy-Item $apkSource -Destination "C:\Users\hp\OneDrive\Desktop\BusAwake.apk" -Force -ErrorAction SilentlyContinue
     Write-Host "[READY] BusAwake.apk ready at workspace root and Desktop!" -ForegroundColor Cyan
 } else {
     Write-Host "[ERROR] Build output APK not found." -ForegroundColor Red

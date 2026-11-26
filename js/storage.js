@@ -2,11 +2,14 @@
 const Storage = {
   KEYS: {
     SETTINGS: 'busawake_settings_v6',
+    SENSITIVE_SESSION: 'busawake_secrets_v6',
     SAVED_ROUTES: 'busawake_routes_v6',
     SAVED_CONTACTS: 'busawake_contacts_v6',
     HISTORY: 'busawake_history_v6',
     LAST_TRIGGER: 'busawake_last_trigger_v6'
   },
+
+  SENSITIVE_FIELDS: ['callMeBotApiKey', 'googleMapsApiKey', 'webhookUrl'],
 
   DEFAULT_CONTACTS: [
     {
@@ -27,15 +30,15 @@ const Storage = {
     {
       id: 'route-ambattur-1',
       name: 'Ambattur OT ➔ Canara Bus Stand',
-      triggerStop: { name: 'Ambattur OT Bus Stand', lat: 13.1143, lng: 80.1548 },
-      finalStop: { name: 'Canara Bus Stand', lat: 13.1190, lng: 80.1620 },
+      triggerStop: { name: 'Ambattur OT Bus Stand', lat: 13.1228, lng: 80.1484 },
+      finalStop: { name: 'Canara Bus Stand', lat: 13.1205, lng: 80.1520 },
       triggerRadius: 400
     },
     {
       id: 'route-cmbt-1',
       name: 'Koyambedu CMBT ➔ Ambattur OT',
       triggerStop: { name: 'Padi Saravana Stores Bus Stop', lat: 13.1006, lng: 80.1837 },
-      finalStop: { name: 'Ambattur OT Bus Stand', lat: 13.1143, lng: 80.1548 },
+      finalStop: { name: 'Ambattur OT Bus Stand', lat: 13.1228, lng: 80.1484 },
       triggerRadius: 450
     }
   ],
@@ -45,13 +48,13 @@ const Storage = {
     activeContactId: 'contact-dad',
     triggerStop: {
       name: 'Ambattur OT Bus Stand',
-      lat: 13.1143,
-      lng: 80.1548
+      lat: 13.1228,
+      lng: 80.1484
     },
     finalStop: {
       name: 'Canara Bus Stand',
-      lat: 13.1190,
-      lng: 80.1620
+      lat: 13.1205,
+      lng: 80.1520
     },
     triggerRadius: 400,
     customMessageTemplate: '{contact_name}, I just crossed {trigger_stop}! Bus speed: {speed} km/h (ETA ~{eta} mins). Please start on the bike to pick me up at {final_stop}!\n📍 Live Location: {live_location_link}',
@@ -111,11 +114,148 @@ const Storage = {
     };
   },
 
+  // Automatically migrate legacy/approximate coordinates in device localStorage to precise GPS coordinates
+  migrateOldCoordinates() {
+    try {
+      // 1. Settings migration
+      const data = localStorage.getItem(this.KEYS.SETTINGS);
+      if (data) {
+        let changed = false;
+        const s = JSON.parse(data);
+        if (s.triggerStop) {
+          if (s.triggerStop.name && s.triggerStop.name.toLowerCase().includes('ot bus stand')) {
+            if (Math.abs(s.triggerStop.lat - 13.1143) < 0.005) {
+              s.triggerStop.lat = 13.1228;
+              s.triggerStop.lng = 80.1484;
+              changed = true;
+            }
+          }
+          if (s.triggerStop.name && s.triggerStop.name.toLowerCase().includes('canara')) {
+            if (Math.abs(s.triggerStop.lat - 13.1190) < 0.005) {
+              s.triggerStop.lat = 13.1205;
+              s.triggerStop.lng = 80.1520;
+              changed = true;
+            }
+          }
+        }
+        if (s.finalStop) {
+          if (s.finalStop.name && s.finalStop.name.toLowerCase().includes('ot bus stand')) {
+            if (Math.abs(s.finalStop.lat - 13.1143) < 0.005) {
+              s.finalStop.lat = 13.1228;
+              s.finalStop.lng = 80.1484;
+              changed = true;
+            }
+          }
+          if (s.finalStop.name && s.finalStop.name.toLowerCase().includes('canara')) {
+            if (Math.abs(s.finalStop.lat - 13.1190) < 0.005) {
+              s.finalStop.lat = 13.1205;
+              s.finalStop.lng = 80.1520;
+              changed = true;
+            }
+          }
+        }
+        if (changed) {
+          localStorage.setItem(this.KEYS.SETTINGS, JSON.stringify(s));
+          console.log('[Storage] Seamlessly migrated settings to exact Ambattur OT Bus Stand coordinates (13.1228, 80.1484)');
+        }
+      }
+
+      // 2. Saved routes migration
+      const routesData = localStorage.getItem(this.KEYS.SAVED_ROUTES);
+      if (routesData) {
+        let routesChanged = false;
+        const routes = JSON.parse(routesData);
+        if (Array.isArray(routes)) {
+          routes.forEach(r => {
+            if (r.triggerStop && r.triggerStop.name && r.triggerStop.name.toLowerCase().includes('ot bus stand')) {
+              if (Math.abs(r.triggerStop.lat - 13.1143) < 0.005) {
+                r.triggerStop.lat = 13.1228;
+                r.triggerStop.lng = 80.1484;
+                routesChanged = true;
+              }
+            }
+            if (r.finalStop && r.finalStop.name && r.finalStop.name.toLowerCase().includes('ot bus stand')) {
+              if (Math.abs(r.finalStop.lat - 13.1143) < 0.005) {
+                r.finalStop.lat = 13.1228;
+                r.finalStop.lng = 80.1484;
+                routesChanged = true;
+              }
+            }
+            if (r.triggerStop && r.triggerStop.name && r.triggerStop.name.toLowerCase().includes('canara')) {
+              if (Math.abs(r.triggerStop.lat - 13.1190) < 0.005) {
+                r.triggerStop.lat = 13.1205;
+                r.triggerStop.lng = 80.1520;
+                routesChanged = true;
+              }
+            }
+            if (r.finalStop && r.finalStop.name && r.finalStop.name.toLowerCase().includes('canara')) {
+              if (Math.abs(r.finalStop.lat - 13.1190) < 0.005) {
+                r.finalStop.lat = 13.1205;
+                r.finalStop.lng = 80.1520;
+                routesChanged = true;
+              }
+            }
+          });
+          if (routesChanged) {
+            localStorage.setItem(this.KEYS.SAVED_ROUTES, JSON.stringify(routes));
+            console.log('[Storage] Seamlessly migrated saved routes to exact Ambattur OT Bus Stand coordinates');
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[Storage] Migration notice:', e);
+    }
+  },
+
+  getSensitiveSettings() {
+    try {
+      const raw = sessionStorage.getItem(this.KEYS.SENSITIVE_SESSION);
+      return raw ? JSON.parse(raw) : {};
+    } catch (e) {
+      return {};
+    }
+  },
+
+  saveSensitiveSettings(obj) {
+    try {
+      const current = this.getSensitiveSettings();
+      const updated = { ...current };
+      this.SENSITIVE_FIELDS.forEach((field) => {
+        if (Object.prototype.hasOwnProperty.call(obj, field)) {
+          updated[field] = obj[field] || '';
+        }
+      });
+      sessionStorage.setItem(this.KEYS.SENSITIVE_SESSION, JSON.stringify(updated));
+      return updated;
+    } catch (e) {
+      console.warn('[Storage] Session secrets notice:', e);
+      return {};
+    }
+  },
+
   getSettings() {
     try {
+      this.migrateOldCoordinates();
       const data = localStorage.getItem(this.KEYS.SETTINGS);
-      if (!data) return { ...this.DEFAULT_SETTINGS };
-      return { ...this.DEFAULT_SETTINGS, ...JSON.parse(data) };
+      const parsed = data ? JSON.parse(data) : {};
+
+      // Strip any legacy plaintext secrets from localStorage and move to sessionStorage
+      let stripped = false;
+      const migratedSecrets = {};
+      this.SENSITIVE_FIELDS.forEach((field) => {
+        if (parsed[field]) {
+          migratedSecrets[field] = parsed[field];
+          delete parsed[field];
+          stripped = true;
+        }
+      });
+      if (stripped) {
+        this.saveSensitiveSettings(migratedSecrets);
+        localStorage.setItem(this.KEYS.SETTINGS, JSON.stringify(parsed));
+      }
+
+      const secrets = this.getSensitiveSettings();
+      return { ...this.DEFAULT_SETTINGS, ...parsed, ...secrets };
     } catch (e) {
       console.error('[Storage] Error reading settings:', e);
       return { ...this.DEFAULT_SETTINGS };
@@ -126,7 +266,15 @@ const Storage = {
     try {
       const current = this.getSettings();
       const updated = { ...current, ...newSettings };
-      localStorage.setItem(this.KEYS.SETTINGS, JSON.stringify(updated));
+
+      // Keep API keys and webhook URLs out of persistent plaintext localStorage
+      this.saveSensitiveSettings(updated);
+      const persistable = { ...updated };
+      this.SENSITIVE_FIELDS.forEach((field) => {
+        delete persistable[field];
+      });
+
+      localStorage.setItem(this.KEYS.SETTINGS, JSON.stringify(persistable));
       return updated;
     } catch (e) {
       console.error('[Storage] Error saving settings:', e);
@@ -191,6 +339,7 @@ const Storage = {
   // Routes Presets Management
   getSavedRoutes() {
     try {
+      this.migrateOldCoordinates();
       const data = localStorage.getItem(this.KEYS.SAVED_ROUTES);
       if (!data) {
         this.saveRoutesList(this.DEFAULT_ROUTES);
@@ -213,7 +362,7 @@ const Storage = {
 
   addOrUpdateRoute(route) {
     const routes = this.getSavedRoutes();
-    const existingIndex = routes.findIndex(r => r.id === route.id || r.name.toLowerCase() === route.name.toLowerCase());
+    const existingIndex = routes.findIndex(r => r.id === route.id || (r.name && route.name && r.name.toLowerCase() === route.name.toLowerCase()));
     if (existingIndex >= 0) {
       routes[existingIndex] = { ...routes[existingIndex], ...route };
     } else {

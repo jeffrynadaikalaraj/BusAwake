@@ -1,4 +1,4 @@
-param (
+﻿param (
     [int]$Port = 8080
 )
 
@@ -61,19 +61,34 @@ while ($true) {
         $relPath = $rawPath.TrimStart("/").Replace("/", [System.IO.Path]::DirectorySeparatorChar)
         $fullPath = [System.IO.Path]::GetFullPath((Join-Path $rootPath $relPath))
 
+        # Security headers shared by all responses
+        $secHeaders = "Permissions-Policy: camera=(), microphone=(), geolocation=(self)`r`nX-Content-Type-Options: nosniff`r`nX-Frame-Options: SAMEORIGIN`r`nReferrer-Policy: strict-origin-when-cross-origin`r`nContent-Security-Policy: upgrade-insecure-requests"
+
         if ($fullPath.StartsWith($rootPath, [System.StringComparison]::OrdinalIgnoreCase) -and [System.IO.File]::Exists($fullPath)) {
             $ext = [System.IO.Path]::GetExtension($fullPath).ToLower()
             $mime = if ($mimeTypes.ContainsKey($ext)) { $mimeTypes[$ext] } else { "application/octet-stream" }
             $bytes = [System.IO.File]::ReadAllBytes($fullPath)
 
-            $header = "HTTP/1.1 200 OK`r`nContent-Type: $mime`r`nContent-Length: $($bytes.Length)`r`nAccess-Control-Allow-Origin: *`r`nCache-Control: no-cache`r`nConnection: close`r`n`r`n"
+            # GZip compress text-based responses
+            $encoding = ""
+            if ($mime.StartsWith("text/") -or $mime.StartsWith("application/javascript") -or $mime.StartsWith("application/json") -or $mime.StartsWith("image/svg+xml")) {
+                $ms = [System.IO.MemoryStream]::new()
+                $gz = [System.IO.Compression.GZipStream]::new($ms, [System.IO.Compression.CompressionMode]::Compress)
+                $gz.Write($bytes, 0, $bytes.Length)
+                $gz.Close()
+                $bytes = $ms.ToArray()
+                $ms.Close()
+                $encoding = "`r`nContent-Encoding: gzip"
+            }
+
+            $header = "HTTP/1.1 200 OK`r`nContent-Type: $mime`r`nContent-Length: $($bytes.Length)$encoding`r`nAccess-Control-Allow-Origin: *`r`nCache-Control: no-cache`r`n$secHeaders`r`nConnection: close`r`n`r`n"
             $headerBytes = [System.Text.Encoding]::ASCII.GetBytes($header)
             $stream.Write($headerBytes, 0, $headerBytes.Length)
             $stream.Write($bytes, 0, $bytes.Length)
         } else {
             $errBody = "404 Not Found: $rawPath"
             $errBytes = [System.Text.Encoding]::UTF8.GetBytes($errBody)
-            $header = "HTTP/1.1 404 Not Found`r`nContent-Type: text/plain`r`nContent-Length: $($errBytes.Length)`r`nConnection: close`r`n`r`n"
+            $header = "HTTP/1.1 404 Not Found`r`nContent-Type: text/plain`r`nContent-Length: $($errBytes.Length)`r`n$secHeaders`r`nConnection: close`r`n`r`n"
             $headerBytes = [System.Text.Encoding]::ASCII.GetBytes($header)
             $stream.Write($headerBytes, 0, $headerBytes.Length)
             $stream.Write($errBytes, 0, $errBytes.Length)

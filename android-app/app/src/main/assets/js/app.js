@@ -54,6 +54,16 @@ window.switchTab = function(targetTabId) {
 };
 
 document.addEventListener('DOMContentLoaded', () => {
+  function escapeHtml(value) {
+    if (value === null || value === undefined) return '';
+    return String(value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
   const STATES = {
     IDLE: 'IDLE',
     TRACKING: 'TRACKING',
@@ -211,8 +221,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Known Local Transit Hubs for instant zero-latency search
   const KNOWN_TRANSIT_STOPS = [
-    { name: 'Ambattur OT Bus Stand', lat: 13.1143, lng: 80.1548, sub: 'Ambattur Old Town Major Bus Depot, Chennai' },
-    { name: 'Canara Bus Stand (Ambattur)', lat: 13.1190, lng: 80.1620, sub: 'Canara Bank Bus Stop / CTH Road, Ambattur' },
+    { name: 'Ambattur OT Bus Stand', lat: 13.1228, lng: 80.1484, sub: 'Ambattur Old Town Major Bus Depot, Chennai' },
+    { name: 'Canara Bus Stand (Ambattur)', lat: 13.1205, lng: 80.1520, sub: 'Canara Bank Bus Stop / CTH Road, Ambattur' },
     { name: 'Ambattur Industrial Estate Bus Stand', lat: 13.0982, lng: 80.1613, sub: 'MTC Depot, Ambattur Estate' },
     { name: 'Thirumullaivoyal Bus Stop', lat: 13.1287, lng: 80.1342, sub: 'CTH Road, Thirumullaivoyal' },
     { name: 'Avadi Bus Terminus', lat: 13.1165, lng: 80.0988, sub: 'Avadi Major Bus Depot, Chennai' },
@@ -484,10 +494,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     window.mapUnified = null;
 
-    const triggerLat = currentSettings.triggerStop?.lat || 13.1143;
-    const triggerLng = currentSettings.triggerStop?.lng || 80.1548;
-    const finalLat = currentSettings.finalStop?.lat || 13.1190;
-    const finalLng = currentSettings.finalStop?.lng || 80.1620;
+    const triggerLat = currentSettings.triggerStop?.lat || 13.1228;
+    const triggerLng = currentSettings.triggerStop?.lng || 80.1484;
+    const finalLat = currentSettings.finalStop?.lat || 13.1205;
+    const finalLng = currentSettings.finalStop?.lng || 80.1520;
 
     // Center map between the two stops
     const centerLat = (triggerLat + finalLat) / 2;
@@ -512,7 +522,7 @@ document.addEventListener('DOMContentLoaded', () => {
       iconSize: [120, 24],
       iconAnchor: [60, 12]
     });
-    markerTrigger = L.marker([triggerLat, triggerLng], { icon: triggerIcon, draggable: true }).addTo(mapUnified);
+    markerTrigger = L.marker([triggerLat, triggerLng], { icon: triggerIcon, draggable: true, alt: 'Alert Trigger Stop Marker' }).addTo(mapUnified);
 
     markerTrigger.on('dragend', (e) => {
       const pos = e.target.getLatLng();
@@ -532,7 +542,7 @@ document.addEventListener('DOMContentLoaded', () => {
       iconSize: [120, 24],
       iconAnchor: [60, 12]
     });
-    markerFinal = L.marker([finalLat, finalLng], { icon: finalIcon, draggable: true }).addTo(mapUnified);
+    markerFinal = L.marker([finalLat, finalLng], { icon: finalIcon, draggable: true, alt: 'Final Drop Stop Marker' }).addTo(mapUnified);
 
     markerFinal.on('dragend', (e) => {
       const pos = e.target.getLatLng();
@@ -633,7 +643,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     if (!userMarker) {
-      userMarker = L.marker(latLng, { icon: icon, zIndexOffset: 1000 }).addTo(mapUnified);
+      userMarker = L.marker(latLng, { icon: icon, zIndexOffset: 1000, alt: 'Your Live Location Marker' }).addTo(mapUnified);
     } else {
       userMarker.setLatLng(latLng);
       userMarker.setIcon(icon);
@@ -775,7 +785,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (results.length === 0) {
       dropdownEl.innerHTML = `
         <div style="padding: 12px; font-size: 0.8rem; color: #94a3b8; text-align: center;">
-          <div>No stops found for "<strong>${qRaw}</strong>".</div>
+          <div>No stops found for "<strong>${escapeHtml(qRaw)}</strong>".</div>
           <div style="font-size: 0.72rem; color: #64748b; margin-top: 4px;">Tap directly on the map to pin your stop, or use "Use Current GPS".</div>
         </div>
       `;
@@ -788,8 +798,8 @@ document.addEventListener('DOMContentLoaded', () => {
   function renderSearchResults(results, dropdownEl) {
     dropdownEl.innerHTML = results.slice(0, 6).map((item, idx) => `
       <div class="search-result-item" data-index="${idx}">
-        <div class="search-result-title">📍 ${item.name}</div>
-        <div class="search-result-sub">${item.sub}</div>
+        <div class="search-result-title">📍 ${escapeHtml(item.name)}</div>
+        <div class="search-result-sub">${escapeHtml(item.sub)}</div>
       </div>
     `).join('');
 
@@ -914,6 +924,30 @@ document.addEventListener('DOMContentLoaded', () => {
       if (els.heroDistance) els.heroDistance.textContent = formattedDist;
       if (els.heroSpeed) els.heroSpeed.textContent = currentBusSpeedKmh;
 
+      const fLat = currentSettings.finalStop?.lat || 13.1205;
+      const fLng = currentSettings.finalStop?.lng || 80.1520;
+      const distToFinal = GeoTracker.calculateDistance(lat, lng, fLat, fLng);
+      const effectiveSpeed = Math.max(currentBusSpeedKmh, 22);
+      currentEtaMins = Math.max(1, Math.round((distRemainingMeters / 1000 / effectiveSpeed) * 60));
+
+      if (els.heroEta) els.heroEta.textContent = currentEtaMins;
+      if (els.heroDistToFinal) els.heroDistToFinal.textContent = GeoTracker.formatDistance(distToFinal);
+
+      const headingDeg = bearing >= 0 ? Math.round(bearing) : 0;
+      const compassDir = GeoTracker.getCardinalDirection(headingDeg);
+      if (els.directionArrowIcon && bearing >= 0) {
+        els.directionArrowIcon.style.transform = `rotate(${headingDeg}deg)`;
+      }
+      if (els.directionText) {
+        els.directionText.textContent = `Heading ${compassDir} (${headingDeg}°) • Speed ${currentBusSpeedKmh} km/h`;
+      }
+
+      // Update Sleep Mode Screen
+      if (els.sleepDistance) els.sleepDistance.textContent = formattedDist;
+      if (els.sleepEta) {
+        els.sleepEta.textContent = `Speed: ${currentBusSpeedKmh} km/h • ETA: ~${currentEtaMins} mins • Heading ${compassDir}`;
+      }
+
       // Accuracy Readout Badges
       const gpsAccEl = document.getElementById('trackerGpsAccuracy');
       const speedAccEl = document.getElementById('trackerSpeedAccuracy');
@@ -1021,7 +1055,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (titleEl) titleEl.textContent = `Near ${currentSettings.triggerStop.name}`;
         if (subEl) subEl.textContent = `Alarm silenced via ${source === 'shake' ? 'shake gesture' : 'manual button'}. Call ${contactName} for pickup?`;
         if (dialBtn) {
-          dialBtn.innerHTML = `📞 Open Dialer: ${contactName} (${contactPhone})`;
+          dialBtn.textContent = `📞 Open Dialer: ${contactName} (${contactPhone})`;
           dialBtn.onclick = () => {
             if (window.AndroidBridge && typeof window.AndroidBridge.openDialer === 'function') {
               window.AndroidBridge.openDialer(contactPhone);
@@ -1396,7 +1430,7 @@ document.addEventListener('DOMContentLoaded', () => {
     `;
     toast.innerHTML = `
       <div style="font-weight: 800; color: #38bdf8; font-size: 0.95rem; margin-bottom: 4px;">
-        📞 Phone Call Triggered: ${links.contactName} (${links.displayPhone})
+        📞 Phone Call Triggered: ${escapeHtml(links.contactName)} (${escapeHtml(links.displayPhone)})
       </div>
       <div style="color: #94a3b8; font-size: 0.76rem; line-height: 1.4;">
         A cellular call was sent to your device. On your <strong>Android/iPhone</strong>, this immediately opens your Phone dialer. On PC, connect Windows Phone Link or test directly on your mobile phone!
@@ -1419,6 +1453,7 @@ document.addEventListener('DOMContentLoaded', () => {
           .catch(err => console.warn('[Silent Dispatch] Fetch notice:', err));
         try {
           const imgPing = new Image();
+          imgPing.alt = '';
           imgPing.src = url;
         } catch (imgErr) {}
       } catch (e) {
@@ -1558,13 +1593,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     savedRoutes.forEach(route => {
       const isCurrent = (
-        currentSettings.triggerStop?.name.toLowerCase() === route.triggerStop?.name.toLowerCase() &&
-        currentSettings.finalStop?.name.toLowerCase() === route.finalStop?.name.toLowerCase()
+        currentSettings.triggerStop?.name?.toLowerCase() === route.triggerStop?.name?.toLowerCase() &&
+        currentSettings.finalStop?.name?.toLowerCase() === route.finalStop?.name?.toLowerCase()
       );
 
       const chip = document.createElement('button');
       chip.className = `chip-item ${isCurrent ? 'active' : ''}`;
-      chip.innerHTML = `📍 ${route.name}`;
+      chip.textContent = `📍 ${route.name}`;
       chip.addEventListener('click', () => {
         applyRoutePreset(route);
       });
@@ -1596,12 +1631,12 @@ document.addEventListener('DOMContentLoaded', () => {
     els.savedRoutesList.innerHTML = savedRoutes.map(route => `
       <div class="saved-item-row">
         <div class="saved-item-info">
-          <div class="saved-item-title">${route.name}</div>
-          <div class="saved-item-sub">🚩 ${route.triggerStop.name} ➔ 🏁 ${route.finalStop.name}</div>
+          <div class="saved-item-title">${escapeHtml(route.name)}</div>
+          <div class="saved-item-sub">🚩 ${escapeHtml(route.triggerStop?.name)} ➔ 🏁 ${escapeHtml(route.finalStop?.name)}</div>
         </div>
         <div style="display: flex; gap: 6px;">
-          <button class="btn btn-sm btn-outline btn-use-route" data-id="${route.id}">Use</button>
-          <button class="btn btn-sm btn-outline btn-del-route" data-id="${route.id}" style="color: #f87171;">✕</button>
+          <button class="btn btn-sm btn-outline btn-use-route" data-id="${escapeHtml(route.id)}">Use</button>
+          <button class="btn btn-sm btn-outline btn-del-route" data-id="${escapeHtml(route.id)}" style="color: #f87171;">✕</button>
         </div>
       </div>
     `).join('');
@@ -1635,8 +1670,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!els.selectActiveContact) return;
 
     els.selectActiveContact.innerHTML = savedContacts.map(c => `
-      <option value="${c.id}" ${c.id === activeContact.id ? 'selected' : ''}>
-        👤 ${c.name} ${c.phone ? `(${c.phone})` : '(No number set)'}
+      <option value="${escapeHtml(c.id)}" ${c.id === activeContact.id ? 'selected' : ''}>
+        👤 ${escapeHtml(c.name)} ${c.phone ? `(${escapeHtml(c.phone)})` : '(No number set)'}
       </option>
     `).join('');
   }
@@ -1651,7 +1686,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const isCurrent = (contact.id === activeContact.id);
       const chip = document.createElement('button');
       chip.className = `chip-item ${isCurrent ? 'contact-active' : ''}`;
-      chip.innerHTML = `👤 ${contact.name} ${contact.phone ? '✓' : '(Set Phone)'}`;
+      chip.textContent = `👤 ${contact.name} ${contact.phone ? '✓' : '(Set Phone)'}`;
       chip.addEventListener('click', () => {
         setActiveContact(contact.id);
       });
@@ -1678,12 +1713,12 @@ document.addEventListener('DOMContentLoaded', () => {
     els.savedContactsList.innerHTML = savedContacts.map(c => `
       <div class="saved-item-row">
         <div class="saved-item-info">
-          <div class="saved-item-title">${c.name}</div>
-          <div class="saved-item-sub">${c.phone || '⚠️ No number set yet'}</div>
+          <div class="saved-item-title">${escapeHtml(c.name)}</div>
+          <div class="saved-item-sub">${c.phone ? escapeHtml(c.phone) : '⚠️ No number set yet'}</div>
         </div>
         <div style="display: flex; gap: 6px;">
-          <button class="btn btn-sm btn-outline btn-select-contact" data-id="${c.id}">Select</button>
-          ${c.id !== 'contact-dad' && c.id !== 'contact-mom' ? `<button class="btn btn-sm btn-outline btn-del-contact" data-id="${c.id}" style="color: #f87171;">✕</button>` : ''}
+          <button class="btn btn-sm btn-outline btn-select-contact" data-id="${escapeHtml(c.id)}">Select</button>
+          ${c.id !== 'contact-dad' && c.id !== 'contact-mom' ? `<button class="btn btn-sm btn-outline btn-del-contact" data-id="${escapeHtml(c.id)}" style="color: #f87171;">✕</button>` : ''}
         </div>
       </div>
     `).join('');
@@ -1778,12 +1813,12 @@ document.addEventListener('DOMContentLoaded', () => {
     els.historyList.innerHTML = history.map(item => `
       <div class="saved-item-row">
         <div>
-          <div class="saved-item-title">${item.type || 'Trigger Crossed'}</div>
-          <div style="font-size: 0.72rem; color: #94a3b8;">${item.triggerStop || 'Ambattur OT'} ➔ ${item.finalStop || 'Canara Stand'} (${item.contact || 'Dad'})</div>
+          <div class="saved-item-title">${escapeHtml(item.type || 'Trigger Crossed')}</div>
+          <div style="font-size: 0.72rem; color: #94a3b8;">${escapeHtml(item.triggerStop || 'Ambattur OT')} ➔ ${escapeHtml(item.finalStop || 'Canara Stand')} (${escapeHtml(item.contact || 'Dad')})</div>
         </div>
         <div style="text-align: right;">
-          <div style="color: #6366f1; font-weight: 700; font-size: 0.76rem;">${item.time || ''}</div>
-          <div style="font-size: 0.68rem; color: #64748b;">${item.date || ''}</div>
+          <div style="color: #6366f1; font-weight: 700; font-size: 0.76rem;">${escapeHtml(item.time || '')}</div>
+          <div style="font-size: 0.68rem; color: #64748b;">${escapeHtml(item.date || '')}</div>
         </div>
       </div>
     `).join('');
@@ -2223,7 +2258,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
       currentSettings = window.StorageManager.saveSettings({ callMeBotApiKey: apiKey });
-      const contact = currentSettings.emergencyContact;
+      const contact = window.StorageManager.getActiveContact();
       const phoneDigits = contact && contact.phone ? contact.phone.replace(/[^0-9]/g, '') : '919444883897';
       const targetName = contact && contact.name ? contact.name : 'Dad';
       const testMsg = `BusAwake Test: Silent background WhatsApp alert is successfully connected to ${targetName}! Automatic arrival alerts will be delivered directly here. 🚍🔔`;
@@ -2232,6 +2267,7 @@ document.addEventListener('DOMContentLoaded', () => {
       try {
         fetch(url, { mode: 'no-cors' });
         const img = new Image();
+        img.alt = '';
         img.src = url;
       } catch (e) {}
 
@@ -2307,11 +2343,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Also start GPS tracking if not already active
       if (currentState === STATES.IDLE) {
-        const triggerCoords = currentSettings.triggerStop.coords;
-        const finalCoords = currentSettings.finalStop.coords;
-        if (triggerCoords && finalCoords) {
+        if (currentSettings.triggerStop && currentSettings.finalStop) {
           window.geoTracker.startTracking(
-            triggerCoords, finalCoords,
+            currentSettings.triggerStop,
+            currentSettings.finalStop,
             currentSettings.triggerRadius
           );
         }
