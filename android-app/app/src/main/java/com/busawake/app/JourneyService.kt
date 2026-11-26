@@ -79,7 +79,7 @@ class JourneyService : Service(), LocationListener {
     var targetRadiusMeters: Float = 400.0f
     var targetStopName: String = "Ambattur OT Bus Stand"
     var contactName: String = "Dad"
-    var contactPhone: String = "9444883897"
+    var contactPhone: String = ""
 
     var isTripActive: Boolean = false
         private set
@@ -189,7 +189,7 @@ class JourneyService : Service(), LocationListener {
                 targetRadiusMeters = intent.getFloatExtra(EXTRA_TARGET_RADIUS, 400f)
                 targetStopName = intent.getStringExtra(EXTRA_TARGET_NAME) ?: "Ambattur OT Bus Stand"
                 contactName = intent.getStringExtra(EXTRA_CONTACT_NAME) ?: "Dad"
-                contactPhone = intent.getStringExtra(EXTRA_CONTACT_PHONE) ?: "9444883897"
+                contactPhone = intent.getStringExtra(EXTRA_CONTACT_PHONE) ?: ""
                 hasTriggeredForStop = false
 
                 startJourney()

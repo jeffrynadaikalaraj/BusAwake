@@ -177,7 +177,7 @@ class MainActivity : AppCompatActivity() {
                     }
                     override fun onAlarmDismissed(source: String) {
                         standaloneShakeDetector?.stop()
-                        evalJs("if(window.onNativeAlarmDismissed) window.onNativeAlarmDismissed('$source', 'Dad', '9444883897');")
+                        evalJs("if(window.onNativeAlarmDismissed) window.onNativeAlarmDismissed('$source', '', '');")
                     }
                 }
             }

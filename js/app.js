@@ -1030,7 +1030,12 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     window.onNativeAlarmDismissed = (source, contactName, contactPhone) => {
-      console.log(`[Native Alarm Dismissed]: source=${source}, contact=${contactName}`);
+      const activeContact = window.StorageManager.getActiveContact();
+      const resolvedName = contactName || (activeContact && activeContact.name) || 'Contact';
+      const formattedActive = window.StorageManager.formatPhone(activeContact && activeContact.phone);
+      const resolvedPhone = contactPhone || (formattedActive.isValid ? formattedActive.tel : '');
+
+      console.log(`[Native Alarm Dismissed]: source=${source}, contact=${resolvedName}`);
       cancelAutoActionCountdown();
       window.alarmEngine.stop();
 
@@ -1047,16 +1052,23 @@ document.addEventListener('DOMContentLoaded', () => {
         const closeBtn = document.getElementById('btnPostDismissClose');
 
         if (titleEl) titleEl.textContent = `Near ${currentSettings.triggerStop.name}`;
-        if (subEl) subEl.textContent = `Alarm silenced via ${source === 'shake' ? 'shake gesture' : 'manual button'}. Call ${contactName} for pickup?`;
+        if (subEl) subEl.textContent = resolvedPhone
+          ? `Alarm silenced via ${source === 'shake' ? 'shake gesture' : 'manual button'}. Call ${resolvedName} for pickup?`
+          : `Alarm silenced via ${source === 'shake' ? 'shake gesture' : 'manual button'}. Set a contact number in Contacts to enable 1-tap calling.`;
         if (dialBtn) {
-          dialBtn.textContent = `📞 Open Dialer: ${contactName} (${contactPhone})`;
-          dialBtn.onclick = () => {
-            if (window.AndroidBridge && typeof window.AndroidBridge.openDialer === 'function') {
-              window.AndroidBridge.openDialer(contactPhone);
-            } else {
-              window.location.href = `tel:${contactPhone}`;
-            }
-          };
+          if (resolvedPhone) {
+            dialBtn.style.display = '';
+            dialBtn.textContent = `📞 Open Dialer: ${resolvedName} (${resolvedPhone})`;
+            dialBtn.onclick = () => {
+              if (window.AndroidBridge && typeof window.AndroidBridge.openDialer === 'function') {
+                window.AndroidBridge.openDialer(resolvedPhone);
+              } else {
+                window.location.href = `tel:${resolvedPhone}`;
+              }
+            };
+          } else {
+            dialBtn.style.display = 'none';
+          }
         }
         if (closeBtn) {
           closeBtn.onclick = () => {
@@ -1383,7 +1395,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Trigger native OS call dialer, SMS, or WhatsApp deep-link
     const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
-    const targetPhone = links.phone || links.displayPhone || '9444883897';
+    const targetPhone = links.phone || links.displayPhone;
 
     if (action === 'auto_call') {
       console.log('[Auto-Action] Direct Phone Call Mode: Calling directly to:', targetPhone);
@@ -1801,7 +1813,7 @@ document.addEventListener('DOMContentLoaded', () => {
           currentSettings.triggerStop.lng,
           parseFloat(currentSettings.triggerRadius) || 400.0,
           contact.name || 'Dad',
-          contact.phone || '9444883897',
+          contact.phone || '',
           currentSettings.triggerStop.name || 'Ambattur OT Bus Stand'
         );
       }

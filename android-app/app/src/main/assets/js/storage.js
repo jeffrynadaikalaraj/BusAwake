@@ -16,7 +16,7 @@ const Storage = {
       id: 'contact-dad',
       name: 'Dad',
       relation: 'Dad',
-      phone: '9444883897'
+      phone: ''
     },
     {
       id: 'contact-mom',
