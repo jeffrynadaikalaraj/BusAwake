@@ -25,6 +25,14 @@ class AndroidBridge(
 ) {
     companion object {
         private const val TAG = "AndroidBridge"
+        private val E164_PHONE_REGEX = Regex("^\\+?[1-9]\\d{6,14}$")
+    }
+
+    private fun sanitizeAndValidatePhone(phoneNumber: String): String? {
+        val trimmed = phoneNumber.trim()
+        if (trimmed.isEmpty() || !Regex("^[+\\d\\s().-]+$").matches(trimmed)) return null
+        val cleaned = trimmed.replace(Regex("[\\s().-]"), "")
+        return if (E164_PHONE_REGEX.matches(cleaned)) cleaned else null
     }
 
     private var testShakeDetector: ShakeDetector? = null
@@ -43,11 +51,11 @@ class AndroidBridge(
      */
     @JavascriptInterface
     fun makeDirectCall(phoneNumber: String) {
-        val cleanNumber = phoneNumber.trim().replace(" ", "").replace("-", "")
-        Log.i(TAG, "makeDirectCall called with: $phoneNumber (clean: $cleanNumber)")
-        if (cleanNumber.isEmpty()) {
+        val cleanNumber = sanitizeAndValidatePhone(phoneNumber)
+        Log.i(TAG, "makeDirectCall requested")
+        if (cleanNumber == null) {
             activity.runOnUiThread {
-                Toast.makeText(activity, "⚠️ Phone number is empty", Toast.LENGTH_SHORT).show()
+                Toast.makeText(activity, "⚠️ Invalid emergency phone number", Toast.LENGTH_SHORT).show()
             }
             return
         }
@@ -84,11 +92,11 @@ class AndroidBridge(
      */
     @JavascriptInterface
     fun openDialer(phoneNumber: String) {
-        val cleanNumber = phoneNumber.trim().replace(" ", "").replace("-", "")
-        Log.i(TAG, "openDialer called: raw='$phoneNumber', clean='$cleanNumber'")
-        if (cleanNumber.isEmpty()) {
+        val cleanNumber = sanitizeAndValidatePhone(phoneNumber)
+        Log.i(TAG, "openDialer requested")
+        if (cleanNumber == null) {
             activity.runOnUiThread {
-                Toast.makeText(activity, "⚠️ Phone number is empty", Toast.LENGTH_SHORT).show()
+                Toast.makeText(activity, "⚠️ Invalid emergency phone number", Toast.LENGTH_SHORT).show()
             }
             return
         }

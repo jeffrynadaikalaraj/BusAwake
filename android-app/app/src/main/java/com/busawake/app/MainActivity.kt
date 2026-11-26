@@ -150,7 +150,8 @@ class MainActivity : AppCompatActivity() {
             }
 
             override fun onAlarmTriggered(stopName: String, distRemainingMeters: Float) {
-                evalJs("if(window.onNativeAlarmTriggered) window.onNativeAlarmTriggered('$stopName', $distRemainingMeters);")
+                val safeStop = org.json.JSONObject.quote(stopName)
+                evalJs("if(window.onNativeAlarmTriggered) window.onNativeAlarmTriggered($safeStop, $distRemainingMeters);")
             }
 
             override fun onShakeProgress(count: Int, max: Int) {
@@ -162,7 +163,10 @@ class MainActivity : AppCompatActivity() {
             }
 
             override fun onAlarmDismissed(source: String, contactName: String, contactPhone: String) {
-                evalJs("if(window.onNativeAlarmDismissed) window.onNativeAlarmDismissed('$source', '$contactName', '$contactPhone');")
+                val safeSource = org.json.JSONObject.quote(source)
+                val safeName = org.json.JSONObject.quote(contactName)
+                val safePhone = org.json.JSONObject.quote(contactPhone)
+                evalJs("if(window.onNativeAlarmDismissed) window.onNativeAlarmDismissed($safeSource, $safeName, $safePhone);")
             }
         }
     }
@@ -177,7 +181,8 @@ class MainActivity : AppCompatActivity() {
                     }
                     override fun onAlarmDismissed(source: String) {
                         standaloneShakeDetector?.stop()
-                        evalJs("if(window.onNativeAlarmDismissed) window.onNativeAlarmDismissed('$source', '', '');")
+                        val safeSource = org.json.JSONObject.quote(source)
+                        evalJs("if(window.onNativeAlarmDismissed) window.onNativeAlarmDismissed($safeSource, '', '');")
                     }
                 }
             }

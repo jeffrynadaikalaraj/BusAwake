@@ -2,14 +2,11 @@
 const Storage = {
   KEYS: {
     SETTINGS: 'busawake_settings_v6',
-    SENSITIVE_SESSION: 'busawake_secrets_v6',
     SAVED_ROUTES: 'busawake_routes_v6',
     SAVED_CONTACTS: 'busawake_contacts_v6',
     HISTORY: 'busawake_history_v6',
     LAST_TRIGGER: 'busawake_last_trigger_v6'
   },
-
-  SENSITIVE_FIELDS: ['googleMapsApiKey'],
 
   DEFAULT_CONTACTS: [
     {
@@ -65,51 +62,81 @@ const Storage = {
     audioAlarmSound: 'bus_bell', // 'bus_bell', 'siren', 'melodic'
     sendLiveLocationLink: true,
     wakeLockEnabled: true,
-    mapTileStyle: 'google_roadmap',
-    googleMapsApiKey: ''
+    mapTileStyle: 'google_roadmap'
   },
 
-  // Robust Phone Number Normalizer
-  formatPhone(rawPhone) {
-    if (!rawPhone || typeof rawPhone !== 'string') {
-      return { raw: '', tel: '', whatsapp: '', display: '', isValid: false };
-    }
-    // Remove all whitespace, dashes, parentheses
-    let cleaned = rawPhone.replace(/[\s\-\(\)]/g, '').trim();
-    if (!cleaned) {
-      return { raw: '', tel: '', whatsapp: '', display: '', isValid: false };
+  // Centralized strict phone number validator (Indian 10-digit & E.164 international)
+  validatePhoneNumber(rawPhone) {
+    if (typeof rawPhone !== 'string') {
+      return { raw: '', tel: '', whatsapp: '', display: '', isValid: false, error: 'Please enter a phone number.' };
     }
 
-    // If starts with 00, replace with +
+    const trimmed = rawPhone.trim();
+    if (!trimmed) {
+      return { raw: '', tel: '', whatsapp: '', display: '', isValid: false, error: 'Phone number cannot be empty.' };
+    }
+
+    // Reject HTML, scripts, letters, or unexpected characters before normalization
+    if (!/^[+\d\s().-]+$/.test(trimmed)) {
+      return {
+        raw: '',
+        tel: '',
+        whatsapp: '',
+        display: '',
+        isValid: false,
+        error: 'Invalid characters in phone number. Use digits and optional + country code only.'
+      };
+    }
+
+    let cleaned = trimmed.replace(/[\s().-]/g, '');
+
+    // Reject '+' anywhere other than the leading position
+    if (cleaned.indexOf('+', 1) !== -1) {
+      return { raw: '', tel: '', whatsapp: '', display: '', isValid: false, error: 'Invalid + placement in phone number.' };
+    }
+
+    // Convert international 00 prefix to +
     if (cleaned.startsWith('00')) {
       cleaned = '+' + cleaned.substring(2);
     }
 
-    // If Indian local format: 0 followed by 10 digits (e.g. 09840123456)
-    if (cleaned.startsWith('0') && cleaned.length === 11) {
+    // Indian local format: 0 + 10-digit mobile (e.g. 09840123456)
+    if (/^0[6-9]\d{9}$/.test(cleaned)) {
       cleaned = '+91' + cleaned.substring(1);
-    }
-
-    // If 10 standard digits without country code (e.g. 9840123456)
-    if (/^[6-9]\d{9}$/.test(cleaned)) {
+    } else if (/^[6-9]\d{9}$/.test(cleaned)) {
+      // Standard 10-digit Indian mobile without country code
       cleaned = '+91' + cleaned;
+    } else if (!cleaned.startsWith('+')) {
+      // International number entered without '+' (must start with non-zero country code, 7-15 digits)
+      cleaned = '+' + cleaned;
     }
 
-    // Standardize tel format (must have + for international or pure digits)
-    const tel = cleaned.startsWith('+') ? cleaned : '+' + cleaned;
+    // Strict E.164 check: '+' followed by non-zero country code and 7 to 15 total digits
+    if (!/^\+[1-9]\d{6,14}$/.test(cleaned)) {
+      return {
+        raw: '',
+        tel: '',
+        whatsapp: '',
+        display: '',
+        isValid: false,
+        error: 'Enter a valid 10-digit Indian number or international E.164 number (e.g. +919876543210 or +14155552671).'
+      };
+    }
 
-    // Standardize WhatsApp digits: strictly digits without '+'
-    const whatsapp = cleaned.replace(/\+/g, '');
-
-    const isValid = whatsapp.length >= 10 && whatsapp.length <= 15;
-
+    const whatsapp = cleaned.substring(1);
     return {
-      raw: rawPhone,
-      tel,
+      raw: trimmed,
+      tel: cleaned,
       whatsapp,
       display: cleaned,
-      isValid
+      isValid: true,
+      error: ''
     };
+  },
+
+  // Backward-compatible wrapper around validatePhoneNumber
+  formatPhone(rawPhone) {
+    return this.validatePhoneNumber(rawPhone);
   },
 
   // Automatically migrate legacy/approximate coordinates in device localStorage to precise GPS coordinates
@@ -205,55 +232,27 @@ const Storage = {
     }
   },
 
-  getSensitiveSettings() {
-    try {
-      const raw = sessionStorage.getItem(this.KEYS.SENSITIVE_SESSION);
-      return raw ? JSON.parse(raw) : {};
-    } catch (e) {
-      return {};
-    }
-  },
-
-  saveSensitiveSettings(obj) {
-    try {
-      const current = this.getSensitiveSettings();
-      const updated = { ...current };
-      this.SENSITIVE_FIELDS.forEach((field) => {
-        if (Object.prototype.hasOwnProperty.call(obj, field)) {
-          updated[field] = obj[field] || '';
-        }
-      });
-      sessionStorage.setItem(this.KEYS.SENSITIVE_SESSION, JSON.stringify(updated));
-      return updated;
-    } catch (e) {
-      console.warn('[Storage] Session secrets notice:', e);
-      return {};
-    }
-  },
-
   getSettings() {
     try {
       this.migrateOldCoordinates();
+      // Remove any legacy API key storage from sessionStorage or localStorage
+      try {
+        sessionStorage.removeItem('busawake_secrets_v6');
+      } catch (e) {}
+
       const data = localStorage.getItem(this.KEYS.SETTINGS);
       const parsed = data ? JSON.parse(data) : {};
 
-      // Strip any legacy plaintext secrets from localStorage and move to sessionStorage
-      let stripped = false;
-      const migratedSecrets = {};
-      this.SENSITIVE_FIELDS.forEach((field) => {
-        if (parsed[field]) {
-          migratedSecrets[field] = parsed[field];
-          delete parsed[field];
-          stripped = true;
-        }
-      });
-      if (stripped) {
-        this.saveSensitiveSettings(migratedSecrets);
+      if (Object.prototype.hasOwnProperty.call(parsed, 'googleMapsApiKey') ||
+          Object.prototype.hasOwnProperty.call(parsed, 'callMeBotApiKey') ||
+          Object.prototype.hasOwnProperty.call(parsed, 'webhookUrl')) {
+        delete parsed.googleMapsApiKey;
+        delete parsed.callMeBotApiKey;
+        delete parsed.webhookUrl;
         localStorage.setItem(this.KEYS.SETTINGS, JSON.stringify(parsed));
       }
 
-      const secrets = this.getSensitiveSettings();
-      return { ...this.DEFAULT_SETTINGS, ...parsed, ...secrets };
+      return { ...this.DEFAULT_SETTINGS, ...parsed };
     } catch (e) {
       console.error('[Storage] Error reading settings:', e);
       return { ...this.DEFAULT_SETTINGS };
@@ -264,15 +263,11 @@ const Storage = {
     try {
       const current = this.getSettings();
       const updated = { ...current, ...newSettings };
+      delete updated.googleMapsApiKey;
+      delete updated.callMeBotApiKey;
+      delete updated.webhookUrl;
 
-      // Keep API keys and webhook URLs out of persistent plaintext localStorage
-      this.saveSensitiveSettings(updated);
-      const persistable = { ...updated };
-      this.SENSITIVE_FIELDS.forEach((field) => {
-        delete persistable[field];
-      });
-
-      localStorage.setItem(this.KEYS.SETTINGS, JSON.stringify(persistable));
+      localStorage.setItem(this.KEYS.SETTINGS, JSON.stringify(updated));
       return updated;
     } catch (e) {
       console.error('[Storage] Error saving settings:', e);

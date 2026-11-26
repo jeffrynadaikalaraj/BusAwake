@@ -64,6 +64,38 @@ document.addEventListener('DOMContentLoaded', () => {
       .replace(/'/g, '&#39;');
   }
 
+  function validateEmergencyPhone(rawPhone) {
+    if (window.StorageManager && typeof window.StorageManager.validatePhoneNumber === 'function') {
+      return window.StorageManager.validatePhoneNumber(rawPhone);
+    }
+    return { raw: '', tel: '', whatsapp: '', display: '', isValid: false, error: 'Phone validator unavailable.' };
+  }
+
+  function invokeNativeBridgeCall(rawPhone, mode = 'dial') {
+    const info = validateEmergencyPhone(rawPhone);
+    if (!info.isValid) {
+      alert(`⚠️ ${info.error || 'Invalid emergency phone number. Please check Contacts.'}`);
+      return false;
+    }
+    if (mode === 'direct' && window.AndroidBridge && typeof window.AndroidBridge.makeDirectCall === 'function') {
+      window.AndroidBridge.makeDirectCall(info.tel);
+      return true;
+    }
+    if (window.AndroidBridge && typeof window.AndroidBridge.openDialer === 'function') {
+      window.AndroidBridge.openDialer(info.tel);
+      return true;
+    }
+    return false;
+  }
+
+  function createStopPinNode(id, labelText, bgColor, textColor, shadowColor) {
+    const el = document.createElement('div');
+    el.id = id;
+    el.textContent = labelText;
+    el.style.cssText = `background:${bgColor};color:${textColor};font-weight:700;font-size:11px;padding:3px 9px;border-radius:6px;border:2px solid #fff;box-shadow:0 0 10px ${shadowColor};white-space:nowrap;cursor:pointer;`;
+    return el;
+  }
+
   const STATES = {
     IDLE: 'IDLE',
     TRACKING: 'TRACKING',
@@ -375,7 +407,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (els.selectAlarmSound) els.selectAlarmSound.value = currentSettings.audioAlarmSound || 'bus_bell';
 
     if (els.inputGoogleApiKey) {
-      els.inputGoogleApiKey.value = currentSettings.googleMapsApiKey || '';
+      els.inputGoogleApiKey.value = '';
     }
   }
 
@@ -509,10 +541,16 @@ document.addEventListener('DOMContentLoaded', () => {
     // Set initial Tile Layer
     setMapTileStyle(currentSettings.mapTileStyle || 'google_roadmap');
 
-    // 1. Trigger Stop Marker (Amber Flag)
+    // 1. Trigger Stop Marker (Amber Flag) - safe DOM node to prevent XSS
     const triggerIcon = L.divIcon({
       className: 'custom-trigger-pin',
-      html: `<div id="mapUnifiedTriggerLabel" style="background:#f59e0b;color:#000;font-weight:700;font-size:11px;padding:3px 9px;border-radius:6px;border:2px solid #fff;box-shadow:0 0 10px rgba(245,158,11,0.7);white-space:nowrap;cursor:pointer;">🚩 ${currentSettings.triggerStop.name}</div>`,
+      html: createStopPinNode(
+        'mapUnifiedTriggerLabel',
+        `🚩 ${currentSettings.triggerStop.name || 'Trigger'}`,
+        '#f59e0b',
+        '#000',
+        'rgba(245,158,11,0.7)'
+      ),
       iconSize: [120, 24],
       iconAnchor: [60, 12]
     });
@@ -529,10 +567,16 @@ document.addEventListener('DOMContentLoaded', () => {
     // 2. Geofence Circle
     updateGeofenceCircle();
 
-    // 3. Final Drop Stop Marker (Emerald Flag)
+    // 3. Final Drop Stop Marker (Emerald Flag) - safe DOM node to prevent XSS
     const finalIcon = L.divIcon({
       className: 'custom-final-pin',
-      html: `<div id="mapUnifiedFinalLabel" style="background:#10b981;color:#fff;font-weight:700;font-size:11px;padding:3px 9px;border-radius:6px;border:2px solid #fff;box-shadow:0 0 10px rgba(16,185,129,0.7);white-space:nowrap;cursor:pointer;">🏁 ${currentSettings.finalStop.name}</div>`,
+      html: createStopPinNode(
+        'mapUnifiedFinalLabel',
+        `🏁 ${currentSettings.finalStop.name || 'Drop'}`,
+        '#10b981',
+        '#fff',
+        'rgba(16,185,129,0.7)'
+      ),
       iconSize: [120, 24],
       iconAnchor: [60, 12]
     });
@@ -777,12 +821,21 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (results.length === 0) {
-      dropdownEl.innerHTML = `
-        <div style="padding: 12px; font-size: 0.8rem; color: #94a3b8; text-align: center;">
-          <div>No stops found for "<strong>${escapeHtml(qRaw)}</strong>".</div>
-          <div style="font-size: 0.72rem; color: #64748b; margin-top: 4px;">Tap directly on the map to pin your stop, or use "Use Current GPS".</div>
-        </div>
-      `;
+      dropdownEl.textContent = '';
+      const wrap = document.createElement('div');
+      wrap.style.cssText = 'padding: 12px; font-size: 0.8rem; color: #94a3b8; text-align: center;';
+      const line1 = document.createElement('div');
+      line1.appendChild(document.createTextNode('No stops found for "'));
+      const strong = document.createElement('strong');
+      strong.textContent = qRaw;
+      line1.appendChild(strong);
+      line1.appendChild(document.createTextNode('".'));
+      const line2 = document.createElement('div');
+      line2.style.cssText = 'font-size: 0.72rem; color: #64748b; margin-top: 4px;';
+      line2.textContent = 'Tap directly on the map to pin your stop, or use "Use Current GPS".';
+      wrap.appendChild(line1);
+      wrap.appendChild(line2);
+      dropdownEl.appendChild(wrap);
       return;
     }
 
@@ -790,20 +843,23 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function renderSearchResults(results, dropdownEl) {
-    dropdownEl.innerHTML = results.slice(0, 6).map((item, idx) => `
-      <div class="search-result-item" data-index="${idx}">
-        <div class="search-result-title">📍 ${escapeHtml(item.name)}</div>
-        <div class="search-result-sub">${escapeHtml(item.sub)}</div>
-      </div>
-    `).join('');
-
-    dropdownEl.querySelectorAll('.search-result-item').forEach(el => {
-      el.addEventListener('click', () => {
-        const idx = parseInt(el.getAttribute('data-index'));
-        const place = results[idx];
+    dropdownEl.textContent = '';
+    results.slice(0, 6).forEach((item) => {
+      const row = document.createElement('div');
+      row.className = 'search-result-item';
+      const title = document.createElement('div');
+      title.className = 'search-result-title';
+      title.textContent = `📍 ${item.name || ''}`;
+      const sub = document.createElement('div');
+      sub.className = 'search-result-sub';
+      sub.textContent = item.sub || '';
+      row.appendChild(title);
+      row.appendChild(sub);
+      row.addEventListener('click', () => {
         dropdownEl.style.display = 'none';
-        applySelectedPlace(place);
+        applySelectedPlace(item);
       });
+      dropdownEl.appendChild(row);
     });
   }
 
@@ -1060,10 +1116,15 @@ document.addEventListener('DOMContentLoaded', () => {
             dialBtn.style.display = '';
             dialBtn.textContent = `📞 Open Dialer: ${resolvedName} (${resolvedPhone})`;
             dialBtn.onclick = () => {
+              const info = validateEmergencyPhone(resolvedPhone);
+              if (!info.isValid) {
+                alert(`⚠️ ${info.error || 'Invalid emergency phone number.'}`);
+                return;
+              }
               if (window.AndroidBridge && typeof window.AndroidBridge.openDialer === 'function') {
-                window.AndroidBridge.openDialer(resolvedPhone);
+                invokeNativeBridgeCall(info.tel, 'dial');
               } else {
-                window.location.href = `tel:${resolvedPhone}`;
+                window.location.href = `tel:${info.tel}`;
               }
             };
           } else {
@@ -1395,16 +1456,14 @@ document.addEventListener('DOMContentLoaded', () => {
     // Trigger native OS call dialer, SMS, or WhatsApp deep-link
     const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
-    const targetPhone = links.phone || links.displayPhone;
+    const targetPhone = links.phone;
 
     if (action === 'auto_call') {
-      console.log('[Auto-Action] Direct Phone Call Mode: Calling directly to:', targetPhone);
+      console.log('[Auto-Action] Direct Phone Call Mode');
       if (window.AndroidBridge && typeof window.AndroidBridge.makeDirectCall === 'function') {
-        console.log('[Native AndroidBridge] Triggering automatic direct call to:', targetPhone);
-        window.AndroidBridge.makeDirectCall(targetPhone);
+        invokeNativeBridgeCall(targetPhone, 'direct');
       } else if (window.AndroidBridge && typeof window.AndroidBridge.openDialer === 'function') {
-        console.log('[Native AndroidBridge] Opening native dialer to:', targetPhone);
-        window.AndroidBridge.openDialer(targetPhone);
+        invokeNativeBridgeCall(targetPhone, 'dial');
       } else {
         window.location.href = links.telLink;
         if (!isMobileDevice) {
@@ -1412,7 +1471,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
     } else if (action === 'auto_sms') {
-      console.log('[Auto-Action] Triggering SMS to:', links.phone);
+      console.log('[Auto-Action] Triggering SMS');
       window.location.href = links.smsLink;
     }
   }
@@ -1429,17 +1488,24 @@ document.addEventListener('DOMContentLoaded', () => {
       padding: 14px 18px; color: #fff; z-index: 10000; max-width: 420px;
       box-shadow: 0 10px 30px rgba(0,0,0,0.8); text-align: center; font-size: 0.82rem;
     `;
-    toast.innerHTML = `
-      <div style="font-weight: 800; color: #38bdf8; font-size: 0.95rem; margin-bottom: 4px;">
-        📞 Phone Call Triggered: ${escapeHtml(links.contactName)} (${escapeHtml(links.displayPhone)})
-      </div>
-      <div style="color: #94a3b8; font-size: 0.76rem; line-height: 1.4;">
-        A cellular call was sent to your device. On your <strong>Android/iPhone</strong>, this immediately opens your Phone dialer. On PC, connect Windows Phone Link or test directly on your mobile phone!
-      </div>
-      <button onclick="this.parentElement.remove()" style="margin-top: 8px; background: #38bdf8; color: #0f172a; font-weight: 700; border: none; border-radius: 6px; padding: 5px 14px; cursor: pointer; font-size: 0.75rem;">
-        Got it
-      </button>
-    `;
+
+    const titleEl = document.createElement('div');
+    titleEl.style.cssText = 'font-weight: 800; color: #38bdf8; font-size: 0.95rem; margin-bottom: 4px;';
+    titleEl.textContent = `📞 Phone Call Triggered: ${links.contactName} (${links.displayPhone})`;
+
+    const bodyEl = document.createElement('div');
+    bodyEl.style.cssText = 'color: #94a3b8; font-size: 0.76rem; line-height: 1.4;';
+    bodyEl.textContent = 'A cellular call was sent to your device. On your Android/iPhone, this immediately opens your Phone dialer. On PC, connect Windows Phone Link or test directly on your mobile phone!';
+
+    const closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.style.cssText = 'margin-top: 8px; background: #38bdf8; color: #0f172a; font-weight: 700; border: none; border-radius: 6px; padding: 5px 14px; cursor: pointer; font-size: 0.75rem;';
+    closeBtn.textContent = 'Got it';
+    closeBtn.addEventListener('click', () => toast.remove());
+
+    toast.appendChild(titleEl);
+    toast.appendChild(bodyEl);
+    toast.appendChild(closeBtn);
     document.body.appendChild(toast);
     setTimeout(() => { try { toast.remove(); } catch(e) {} }, 8000);
   }
@@ -1506,14 +1572,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function generateActiveContactLinks(triggerData = null) {
     const contact = window.StorageManager.getActiveContact();
-    const phoneInfo = window.StorageManager.formatPhone(contact.phone);
+    const phoneInfo = validateEmergencyPhone(contact.phone);
     const rawMessage = getDynamicFormattedMessage(triggerData);
     const msg = encodeURIComponent(rawMessage);
 
-    const telLink = phoneInfo.tel ? `tel:${phoneInfo.tel}` : 'tel:';
+    const telLink = phoneInfo.isValid ? `tel:${phoneInfo.tel}` : '#';
     // WhatsApp universal deep-link format
-    const waLink = phoneInfo.whatsapp ? `https://api.whatsapp.com/send?phone=${phoneInfo.whatsapp}&text=${msg}` : '#';
-    const smsLink = phoneInfo.tel ? `sms:${phoneInfo.tel}?body=${msg}` : 'sms:';
+    const waLink = phoneInfo.isValid ? `https://api.whatsapp.com/send?phone=${encodeURIComponent(phoneInfo.whatsapp)}&text=${msg}` : '#';
+    const smsLink = phoneInfo.isValid ? `sms:${phoneInfo.tel}?body=${msg}` : '#';
 
     return {
       telLink,
@@ -1523,6 +1589,7 @@ document.addEventListener('DOMContentLoaded', () => {
       waDigits: phoneInfo.whatsapp,
       displayPhone: phoneInfo.display,
       isValid: phoneInfo.isValid,
+      error: phoneInfo.error,
       contactName: contact.name,
       rawMessage
     };
@@ -1583,44 +1650,58 @@ document.addEventListener('DOMContentLoaded', () => {
   function renderSavedRoutesList() {
     savedRoutes = window.StorageManager.getSavedRoutes();
     if (!els.savedRoutesList) return;
+    els.savedRoutesList.textContent = '';
+
     if (!savedRoutes || savedRoutes.length === 0) {
-      els.savedRoutesList.innerHTML = '<div style="font-size: 0.8rem; color: var(--text-muted); text-align: center; padding: 8px;">No presets saved.</div>';
+      const empty = document.createElement('div');
+      empty.style.cssText = 'font-size: 0.8rem; color: var(--text-muted); text-align: center; padding: 8px;';
+      empty.textContent = 'No presets saved.';
+      els.savedRoutesList.appendChild(empty);
       return;
     }
 
-    els.savedRoutesList.innerHTML = savedRoutes.map(route => `
-      <div class="saved-item-row">
-        <div class="saved-item-info">
-          <div class="saved-item-title">${escapeHtml(route.name)}</div>
-          <div class="saved-item-sub">🚩 ${escapeHtml(route.triggerStop?.name)} ➔ 🏁 ${escapeHtml(route.finalStop?.name)}</div>
-        </div>
-        <div style="display: flex; gap: 6px;">
-          <button class="btn btn-sm btn-outline btn-use-route" data-id="${escapeHtml(route.id)}">Use</button>
-          <button class="btn btn-sm btn-outline btn-del-route" data-id="${escapeHtml(route.id)}" style="color: #f87171;">✕</button>
-        </div>
-      </div>
-    `).join('');
+    savedRoutes.forEach((route) => {
+      const row = document.createElement('div');
+      row.className = 'saved-item-row';
 
-    els.savedRoutesList.querySelectorAll('.btn-use-route').forEach(b => {
-      b.addEventListener('click', () => {
-        const id = b.getAttribute('data-id');
-        const found = savedRoutes.find(r => r.id === id);
-        if (found) {
-          applyRoutePreset(found);
-          alert(`✓ Loaded preset "${found.name}"!`);
-        }
+      const info = document.createElement('div');
+      info.className = 'saved-item-info';
+      const title = document.createElement('div');
+      title.className = 'saved-item-title';
+      title.textContent = route.name || '';
+      const sub = document.createElement('div');
+      sub.className = 'saved-item-sub';
+      sub.textContent = `🚩 ${route.triggerStop?.name || ''} ➔ 🏁 ${route.finalStop?.name || ''}`;
+      info.appendChild(title);
+      info.appendChild(sub);
+
+      const actions = document.createElement('div');
+      actions.style.cssText = 'display: flex; gap: 6px;';
+      const useBtn = document.createElement('button');
+      useBtn.className = 'btn btn-sm btn-outline btn-use-route';
+      useBtn.textContent = 'Use';
+      useBtn.addEventListener('click', () => {
+        applyRoutePreset(route);
+        alert(`✓ Loaded preset "${route.name}"!`);
       });
-    });
 
-    els.savedRoutesList.querySelectorAll('.btn-del-route').forEach(b => {
-      b.addEventListener('click', () => {
-        const id = b.getAttribute('data-id');
+      const delBtn = document.createElement('button');
+      delBtn.className = 'btn btn-sm btn-outline btn-del-route';
+      delBtn.style.color = '#f87171';
+      delBtn.textContent = '✕';
+      delBtn.addEventListener('click', () => {
         if (confirm('Delete this saved route preset?')) {
-          savedRoutes = window.StorageManager.deleteRoute(id);
+          savedRoutes = window.StorageManager.deleteRoute(route.id);
           renderSavedRoutesList();
           renderRouteChips();
         }
       });
+
+      actions.appendChild(useBtn);
+      actions.appendChild(delBtn);
+      row.appendChild(info);
+      row.appendChild(actions);
+      els.savedRoutesList.appendChild(row);
     });
   }
 
@@ -1629,11 +1710,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const activeContact = window.StorageManager.getActiveContact();
     if (!els.selectActiveContact) return;
 
-    els.selectActiveContact.innerHTML = savedContacts.map(c => `
-      <option value="${escapeHtml(c.id)}" ${c.id === activeContact.id ? 'selected' : ''}>
-        👤 ${escapeHtml(c.name)} ${c.phone ? `(${escapeHtml(c.phone)})` : '(No number set)'}
-      </option>
-    `).join('');
+    els.selectActiveContact.textContent = '';
+    savedContacts.forEach((c) => {
+      const opt = document.createElement('option');
+      opt.value = c.id;
+      opt.selected = c.id === activeContact.id;
+      opt.textContent = `👤 ${c.name} ${c.phone ? `(${c.phone})` : '(No number set)'}`;
+      els.selectActiveContact.appendChild(opt);
+    });
   }
 
   function renderContactChips() {
@@ -1665,45 +1749,62 @@ document.addEventListener('DOMContentLoaded', () => {
   function renderSavedContactsList() {
     savedContacts = window.StorageManager.getSavedContacts();
     if (!els.savedContactsList) return;
+    els.savedContactsList.textContent = '';
+
     if (!savedContacts || savedContacts.length === 0) {
-      els.savedContactsList.innerHTML = '<div style="font-size: 0.8rem; color: var(--text-muted); text-align: center;">No contacts saved.</div>';
+      const empty = document.createElement('div');
+      empty.style.cssText = 'font-size: 0.8rem; color: var(--text-muted); text-align: center;';
+      empty.textContent = 'No contacts saved.';
+      els.savedContactsList.appendChild(empty);
       return;
     }
 
-    els.savedContactsList.innerHTML = savedContacts.map(c => `
-      <div class="saved-item-row">
-        <div class="saved-item-info">
-          <div class="saved-item-title">${escapeHtml(c.name)}</div>
-          <div class="saved-item-sub">${c.phone ? escapeHtml(c.phone) : '⚠️ No number set yet'}</div>
-        </div>
-        <div style="display: flex; gap: 6px;">
-          <button class="btn btn-sm btn-outline btn-select-contact" data-id="${escapeHtml(c.id)}">Select</button>
-          ${c.id !== 'contact-dad' && c.id !== 'contact-mom' ? `<button class="btn btn-sm btn-outline btn-del-contact" data-id="${escapeHtml(c.id)}" style="color: #f87171;">✕</button>` : ''}
-        </div>
-      </div>
-    `).join('');
+    savedContacts.forEach((c) => {
+      const row = document.createElement('div');
+      row.className = 'saved-item-row';
 
-    els.savedContactsList.querySelectorAll('.btn-select-contact').forEach(b => {
-      b.addEventListener('click', () => {
-        const id = b.getAttribute('data-id');
-        setActiveContact(id);
-      });
-    });
+      const info = document.createElement('div');
+      info.className = 'saved-item-info';
+      const title = document.createElement('div');
+      title.className = 'saved-item-title';
+      title.textContent = c.name || '';
+      const sub = document.createElement('div');
+      sub.className = 'saved-item-sub';
+      sub.textContent = c.phone ? c.phone : '⚠️ No number set yet';
+      info.appendChild(title);
+      info.appendChild(sub);
 
-    els.savedContactsList.querySelectorAll('.btn-del-contact').forEach(b => {
-      b.addEventListener('click', () => {
-        const id = b.getAttribute('data-id');
-        if (confirm('Delete this contact?')) {
-          savedContacts = window.StorageManager.deleteContact(id);
-          if (currentSettings.activeContactId === id) {
-            currentSettings.activeContactId = savedContacts[0]?.id || 'contact-dad';
-            window.StorageManager.saveSettings(currentSettings);
+      const actions = document.createElement('div');
+      actions.style.cssText = 'display: flex; gap: 6px;';
+      const selBtn = document.createElement('button');
+      selBtn.className = 'btn btn-sm btn-outline btn-select-contact';
+      selBtn.textContent = 'Select';
+      selBtn.addEventListener('click', () => setActiveContact(c.id));
+      actions.appendChild(selBtn);
+
+      if (c.id !== 'contact-dad' && c.id !== 'contact-mom') {
+        const delBtn = document.createElement('button');
+        delBtn.className = 'btn btn-sm btn-outline btn-del-contact';
+        delBtn.style.color = '#f87171';
+        delBtn.textContent = '✕';
+        delBtn.addEventListener('click', () => {
+          if (confirm('Delete this contact?')) {
+            savedContacts = window.StorageManager.deleteContact(c.id);
+            if (currentSettings.activeContactId === c.id) {
+              currentSettings.activeContactId = savedContacts[0]?.id || 'contact-dad';
+              window.StorageManager.saveSettings(currentSettings);
+            }
+            loadSettingsIntoUI();
+            renderContactChips();
+            renderSavedContactsList();
           }
-          loadSettingsIntoUI();
-          renderContactChips();
-          renderSavedContactsList();
-        }
-      });
+        });
+        actions.appendChild(delBtn);
+      }
+
+      row.appendChild(info);
+      row.appendChild(actions);
+      els.savedContactsList.appendChild(row);
     });
   }
 
@@ -1765,23 +1866,46 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function renderHistory() {
     const history = window.StorageManager.getTripHistory();
+    if (!els.historyList) return;
+    els.historyList.textContent = '';
+
     if (!history || history.length === 0) {
-      els.historyList.innerHTML = '<div style="font-size: 0.8rem; color: var(--text-muted); text-align: center; padding: 10px;">No trips logged yet.</div>';
+      const empty = document.createElement('div');
+      empty.style.cssText = 'font-size: 0.8rem; color: var(--text-muted); text-align: center; padding: 10px;';
+      empty.textContent = 'No trips logged yet.';
+      els.historyList.appendChild(empty);
       return;
     }
 
-    els.historyList.innerHTML = history.map(item => `
-      <div class="saved-item-row">
-        <div>
-          <div class="saved-item-title">${escapeHtml(item.type || 'Trigger Crossed')}</div>
-          <div style="font-size: 0.72rem; color: #94a3b8;">${escapeHtml(item.triggerStop || 'Ambattur OT')} ➔ ${escapeHtml(item.finalStop || 'Canara Stand')} (${escapeHtml(item.contact || 'Dad')})</div>
-        </div>
-        <div style="text-align: right;">
-          <div style="color: #6366f1; font-weight: 700; font-size: 0.76rem;">${escapeHtml(item.time || '')}</div>
-          <div style="font-size: 0.68rem; color: #64748b;">${escapeHtml(item.date || '')}</div>
-        </div>
-      </div>
-    `).join('');
+    history.forEach((item) => {
+      const row = document.createElement('div');
+      row.className = 'saved-item-row';
+
+      const left = document.createElement('div');
+      const title = document.createElement('div');
+      title.className = 'saved-item-title';
+      title.textContent = item.type || 'Trigger Crossed';
+      const sub = document.createElement('div');
+      sub.style.cssText = 'font-size: 0.72rem; color: #94a3b8;';
+      sub.textContent = `${item.triggerStop || 'Ambattur OT'} ➔ ${item.finalStop || 'Canara Stand'} (${item.contact || 'Dad'})`;
+      left.appendChild(title);
+      left.appendChild(sub);
+
+      const right = document.createElement('div');
+      right.style.textAlign = 'right';
+      const time = document.createElement('div');
+      time.style.cssText = 'color: #6366f1; font-weight: 700; font-size: 0.76rem;';
+      time.textContent = item.time || '';
+      const date = document.createElement('div');
+      date.style.cssText = 'font-size: 0.68rem; color: #64748b;';
+      date.textContent = item.date || '';
+      right.appendChild(time);
+      right.appendChild(date);
+
+      row.appendChild(left);
+      row.appendChild(right);
+      els.historyList.appendChild(row);
+    });
   }
 
   // -----------------------------------------------------------------
@@ -1808,12 +1932,13 @@ document.addEventListener('DOMContentLoaded', () => {
       // Native Android Background Journey
       if (window.AndroidBridge && typeof window.AndroidBridge.startNativeJourney === 'function') {
         const contact = window.StorageManager.getActiveContact();
+        const phoneInfo = validateEmergencyPhone(contact.phone);
         window.AndroidBridge.startNativeJourney(
           currentSettings.triggerStop.lat,
           currentSettings.triggerStop.lng,
           parseFloat(currentSettings.triggerRadius) || 400.0,
           contact.name || 'Dad',
-          contact.phone || '',
+          phoneInfo.isValid ? phoneInfo.tel : '',
           currentSettings.triggerStop.name || 'Ambattur OT Bus Stand'
         );
       }
@@ -1846,13 +1971,13 @@ document.addEventListener('DOMContentLoaded', () => {
       window.alarmEngine.unlockAudio();
       const links = generateActiveContactLinks();
       if (!links.isValid) {
-        alert(`⚠️ Please set a valid 10-digit mobile number for ${links.contactName} in the Contacts tab!`);
+        alert(`⚠️ ${links.error || `Please set a valid mobile number for ${links.contactName} in the Contacts tab!`}`);
         window.switchTab('tabContacts');
         return;
       }
-      console.log('[Test Call] Opening dialer for:', links.phone);
+      console.log('[Test Call] Opening dialer');
       if (window.AndroidBridge && typeof window.AndroidBridge.openDialer === 'function') {
-        window.AndroidBridge.openDialer(links.phone);
+        invokeNativeBridgeCall(links.phone, 'dial');
       } else {
         window.location.href = links.telLink;
       }
@@ -1860,12 +1985,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 1-Tap Alarm Call Button in Alarm Screen
     on(els.alarmCallBtn, 'click', (e) => {
+      const links = generateActiveContactLinks(currentActiveTriggerData);
+      if (!links.isValid) {
+        e.preventDefault();
+        alert(`⚠️ ${links.error || `Please set a valid mobile number for ${links.contactName} in Contacts.`}`);
+        return;
+      }
       if (window.AndroidBridge && typeof window.AndroidBridge.openDialer === 'function') {
         e.preventDefault();
-        const links = generateActiveContactLinks(currentActiveTriggerData);
-        if (links.isValid) {
-          window.AndroidBridge.openDialer(links.phone);
-        }
+        invokeNativeBridgeCall(links.phone, 'dial');
       }
     });
 
@@ -2078,8 +2206,11 @@ document.addEventListener('DOMContentLoaded', () => {
       const val = e.target.value;
       updatePhonePreview(val);
       const activeContact = window.StorageManager.getActiveContact();
-      activeContact.phone = val.trim();
-      window.StorageManager.addOrUpdateContact(activeContact);
+      const phoneInfo = validateEmergencyPhone(val);
+      if (phoneInfo.isValid) {
+        activeContact.phone = phoneInfo.tel;
+        window.StorageManager.addOrUpdateContact(activeContact);
+      }
       updateQuickTestDisplay();
       updateMessagePreview();
     });
@@ -2087,8 +2218,12 @@ document.addEventListener('DOMContentLoaded', () => {
     on(els.btnSaveActiveContactPhone, 'click', () => {
       const activeContact = window.StorageManager.getActiveContact();
       const phoneVal = els.inputContactPhone ? els.inputContactPhone.value.trim() : '';
-      const phoneInfo = window.StorageManager.formatPhone(phoneVal);
-      activeContact.phone = phoneInfo.raw;
+      const phoneInfo = validateEmergencyPhone(phoneVal);
+      if (!phoneInfo.isValid) {
+        alert(`⚠️ ${phoneInfo.error || 'Please enter a valid mobile number.'}`);
+        return;
+      }
+      activeContact.phone = phoneInfo.tel;
       window.StorageManager.addOrUpdateContact(activeContact);
       renderContactChips();
       renderSavedContactsList();
@@ -2124,10 +2259,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
     on(els.btnAddContact, 'click', () => {
       const name = els.inputNewContactName ? els.inputNewContactName.value.trim() : '';
-      const phone = els.inputNewContactPhone ? els.inputNewContactPhone.value.trim() : '';
+      const rawPhone = els.inputNewContactPhone ? els.inputNewContactPhone.value.trim() : '';
       if (!name) return alert('Please enter contact name (e.g. Brother, Mom, Dad)');
 
-      window.StorageManager.addOrUpdateContact({ name, phone });
+      let normalizedPhone = '';
+      if (rawPhone) {
+        const phoneInfo = validateEmergencyPhone(rawPhone);
+        if (!phoneInfo.isValid) {
+          alert(`⚠️ ${phoneInfo.error || 'Please enter a valid mobile number.'}`);
+          return;
+        }
+        normalizedPhone = phoneInfo.tel;
+      }
+
+      window.StorageManager.addOrUpdateContact({ name, phone: normalizedPhone });
       if (els.inputNewContactName) els.inputNewContactName.value = '';
       if (els.inputNewContactPhone) els.inputNewContactPhone.value = '';
       renderContactChips();
@@ -2210,10 +2355,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     on(els.btnSaveGoogleApiKey, 'click', () => {
-      const key = els.inputGoogleApiKey ? els.inputGoogleApiKey.value.trim() : '';
-      currentSettings.googleMapsApiKey = key;
-      window.StorageManager.saveSettings(currentSettings);
-      alert(key ? '✓ Google Maps API key saved!' : '✓ Switched to built-in smart places search.');
+      if (els.inputGoogleApiKey) els.inputGoogleApiKey.value = '';
+      alert('ℹ️ Browser-side Google API key storage is disabled for security. BusAwake uses built-in stops & OpenStreetMap/Photon search. For Google Maps keys, use HTTP referrer restrictions in Google Cloud Console or a backend proxy.');
     });
 
 
