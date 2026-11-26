@@ -162,4 +162,21 @@ runTest('11. Google Maps API key never persisted in sessionStorage or localStora
   assert.strictEqual(rawLocal.googleMapsApiKey, undefined, 'googleMapsApiKey must not be in localStorage');
 });
 
+// 12. Android cleartext traffic & WebView mixed content disabled
+runTest('12. AndroidManifest and WebView forbid cleartext and mixed content', () => {
+  const manifest = fs.readFileSync(
+    path.join(__dirname, '..', 'android-app', 'app', 'src', 'main', 'AndroidManifest.xml'),
+    'utf8'
+  );
+  assert.ok(manifest.includes('android:usesCleartextTraffic="false"'), 'usesCleartextTraffic must be false');
+  assert.ok(!manifest.includes('android:usesCleartextTraffic="true"'), 'usesCleartextTraffic must not be true');
+
+  const mainKt = fs.readFileSync(
+    path.join(__dirname, '..', 'android-app', 'app', 'src', 'main', 'java', 'com', 'busawake', 'app', 'MainActivity.kt'),
+    'utf8'
+  );
+  assert.ok(mainKt.includes('WebSettings.MIXED_CONTENT_NEVER_ALLOW'), 'WebView must use MIXED_CONTENT_NEVER_ALLOW');
+  assert.ok(!mainKt.includes('MIXED_CONTENT_ALWAYS_ALLOW'), 'WebView must not use MIXED_CONTENT_ALWAYS_ALLOW');
+});
+
 console.log(`\nAll ${passed} security tests passed.`);

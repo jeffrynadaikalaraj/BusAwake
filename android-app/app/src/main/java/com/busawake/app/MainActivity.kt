@@ -226,7 +226,7 @@ class MainActivity : AppCompatActivity() {
         settings.setGeolocationEnabled(true)
         settings.mediaPlaybackRequiresUserGesture = false
         settings.cacheMode = WebSettings.LOAD_DEFAULT
-        settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+        settings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
         settings.allowFileAccess = true
         settings.allowContentAccess = true
 
