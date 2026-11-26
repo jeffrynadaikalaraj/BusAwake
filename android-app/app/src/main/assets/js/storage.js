@@ -9,7 +9,7 @@ const Storage = {
     LAST_TRIGGER: 'busawake_last_trigger_v6'
   },
 
-  SENSITIVE_FIELDS: ['callMeBotApiKey', 'googleMapsApiKey', 'webhookUrl'],
+  SENSITIVE_FIELDS: ['googleMapsApiKey'],
 
   DEFAULT_CONTACTS: [
     {
@@ -63,8 +63,6 @@ const Storage = {
     autoActionCountdownSec: 3, // 0 for instant, 3 or 5 for cancelable countdown
     ttsAnnounceEnabled: true,
     audioAlarmSound: 'bus_bell', // 'bus_bell', 'siren', 'melodic'
-    webhookUrl: '',
-    callMeBotApiKey: '',
     sendLiveLocationLink: true,
     wakeLockEnabled: true,
     mapTileStyle: 'google_roadmap',

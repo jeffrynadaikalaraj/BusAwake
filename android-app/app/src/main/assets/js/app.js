@@ -181,10 +181,6 @@ document.addEventListener('DOMContentLoaded', () => {
     toggleVoiceSpeech: document.getElementById('toggleVoiceSpeech'),
     toggleWakeLock: document.getElementById('toggleWakeLock'),
     btnSaveConfig: document.getElementById('btnSaveConfig'),
-    inputCallMeBotKey: document.getElementById('inputCallMeBotKey'),
-    btnTestSilentWhatsApp: document.getElementById('btnTestSilentWhatsApp'),
-    inputWebhookUrl: document.getElementById('inputWebhookUrl'),
-    btnSaveWebhookConfig: document.getElementById('btnSaveWebhookConfig'),
     inputGoogleApiKey: document.getElementById('inputGoogleApiKey'),
     btnSaveGoogleApiKey: document.getElementById('btnSaveGoogleApiKey'),
     googleApiStatusMsg: document.getElementById('googleApiStatusMsg'),
@@ -377,8 +373,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (els.toggleVoiceSpeech) els.toggleVoiceSpeech.checked = currentSettings.ttsAnnounceEnabled !== false;
     if (els.toggleWakeLock) els.toggleWakeLock.checked = currentSettings.wakeLockEnabled !== false;
     if (els.selectAlarmSound) els.selectAlarmSound.value = currentSettings.audioAlarmSound || 'bus_bell';
-    if (els.inputCallMeBotKey) els.inputCallMeBotKey.value = currentSettings.callMeBotApiKey || '';
-    if (els.inputWebhookUrl) els.inputWebhookUrl.value = currentSettings.webhookUrl || '';
 
     if (els.inputGoogleApiKey) {
       els.inputGoogleApiKey.value = currentSettings.googleMapsApiKey || '';
@@ -1386,12 +1380,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const action = currentSettings.autoActionOnReach || 'auto_call';
 
-    // 1. Trigger background messaging ONLY if WhatsApp mode is requested (Zero messages for pure call)
-    if (action === 'auto_whatsapp' || action === 'auto_call_and_wa') {
-      sendSilentBackgroundAlert(links);
-    }
-
-    // 2. Trigger native OS call dialer or WhatsApp
+    // Trigger native OS call dialer, SMS, or WhatsApp deep-link
     const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
     const targetPhone = links.phone || links.displayPhone || '9444883897';
@@ -1441,47 +1430,6 @@ document.addEventListener('DOMContentLoaded', () => {
     `;
     document.body.appendChild(toast);
     setTimeout(() => { try { toast.remove(); } catch(e) {} }, 8000);
-  }
-
-  async function sendSilentBackgroundAlert(links) {
-    // 1. CallMeBot WhatsApp API (Direct automated background WhatsApp to phone)
-    if (currentSettings.callMeBotApiKey && links.waDigits) {
-      try {
-        const url = `https://api.callmebot.com/whatsapp.php?phone=${links.waDigits}&text=${encodeURIComponent(links.rawMessage)}&apikey=${encodeURIComponent(currentSettings.callMeBotApiKey.trim())}`;
-        fetch(url, { mode: 'no-cors' })
-          .then(() => console.log('[Silent Dispatch] WhatsApp dispatched via CallMeBot API'))
-          .catch(err => console.warn('[Silent Dispatch] Fetch notice:', err));
-        try {
-          const imgPing = new Image();
-          imgPing.alt = '';
-          imgPing.src = url;
-        } catch (imgErr) {}
-      } catch (e) {
-        console.warn('[CallMeBot notice]:', e);
-      }
-    }
-
-    // 2. Custom Webhook (n8n, Zapier, Telegram, custom backend)
-    if (currentSettings.webhookUrl) {
-      try {
-        fetch(currentSettings.webhookUrl.trim(), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            event: 'checkpoint_reached',
-            triggerStop: currentSettings.triggerStop.name,
-            finalStop: currentSettings.finalStop.name,
-            contactName: links.contactName,
-            phone: links.phone,
-            message: links.rawMessage,
-            speedKmh: currentBusSpeedKmh,
-            timestamp: new Date().toISOString()
-          })
-        }).catch(err => console.warn('[Webhook notice]:', err));
-      } catch (e) {
-        console.warn('[Webhook notice]:', e);
-      }
-    }
   }
 
   function showArrivalNotification(triggerName, contactName, finalName) {
@@ -1917,7 +1865,6 @@ document.addEventListener('DOMContentLoaded', () => {
         window.switchTab('tabContacts');
         return;
       }
-      sendSilentBackgroundAlert(links);
       console.log('[Test WhatsApp] Opening:', links.waLink);
       window.open(links.waLink, '_blank');
     });
@@ -2228,7 +2175,6 @@ document.addEventListener('DOMContentLoaded', () => {
       window.alarmEngine.unlockAudio();
       const links = generateActiveContactLinks();
       if (!links.isValid) return alert(`Please save ${links.contactName}'s phone number first!`);
-      sendSilentBackgroundAlert(links);
       window.open(links.waLink, '_blank');
     });
 
@@ -2249,37 +2195,6 @@ document.addEventListener('DOMContentLoaded', () => {
       });
       loadSettingsIntoUI();
       alert('✓ Preferences saved!');
-    });
-
-    on(els.btnTestSilentWhatsApp, 'click', () => {
-      const apiKey = els.inputCallMeBotKey ? els.inputCallMeBotKey.value.trim() : (currentSettings.callMeBotApiKey || '');
-      if (!apiKey) {
-        alert('⚠️ Please enter your CallMeBot API Key first!\n\nFollow the 1-minute setup above: Send "I allow callmebot to send me messages" on WhatsApp to get your free key.');
-        return;
-      }
-      currentSettings = window.StorageManager.saveSettings({ callMeBotApiKey: apiKey });
-      const contact = window.StorageManager.getActiveContact();
-      const phoneDigits = contact && contact.phone ? contact.phone.replace(/[^0-9]/g, '') : '919444883897';
-      const targetName = contact && contact.name ? contact.name : 'Dad';
-      const testMsg = `BusAwake Test: Silent background WhatsApp alert is successfully connected to ${targetName}! Automatic arrival alerts will be delivered directly here. 🚍🔔`;
-      const url = `https://api.callmebot.com/whatsapp.php?phone=${phoneDigits}&text=${encodeURIComponent(testMsg)}&apikey=${encodeURIComponent(apiKey)}`;
-      
-      try {
-        fetch(url, { mode: 'no-cors' });
-        const img = new Image();
-        img.alt = '';
-        img.src = url;
-      } catch (e) {}
-
-      alert(`✓ Test alert dispatched silently to ${targetName} (+${phoneDigits})!\n\nCheck WhatsApp on ${targetName}'s phone in a few seconds to confirm receipt.`);
-    });
-
-    on(els.btnSaveWebhookConfig, 'click', () => {
-      currentSettings = window.StorageManager.saveSettings({
-        callMeBotApiKey: els.inputCallMeBotKey ? els.inputCallMeBotKey.value.trim() : '',
-        webhookUrl: els.inputWebhookUrl ? els.inputWebhookUrl.value.trim() : ''
-      });
-      alert('✓ Webhook configuration saved!');
     });
 
     on(els.btnSaveGoogleApiKey, 'click', () => {
